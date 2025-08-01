@@ -5,6 +5,7 @@
 
 #define MAX_CHAR 16
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
+#define NUM_AIR_ROUTES 5
 
 /*---------------------------------------------------------FUNCTIONS DECLARATION----------------------------------------------------*/
 
@@ -27,25 +28,17 @@ int dist_hex(int, int, int, int);
 
 
 /*---------------------------------------------------------DATA STRUCTURES------------------------------------------------------*/
-typedef struct Hexagon{
-    int x; // DA TOGLIERE prob le coordinate (x,y) dell'esagono sono implicite dalla sua posizione nella matrice map[y][x].
-    int y;
-    int cost;
-} Hexagon_t;
-
 typedef struct Air_Route{
+    int part_x, part_y;
     int dest_x, dest_y;
     int cost;
 } Air_Route_t;
 
-/*
-// Nella mappa principale
-Hexagon_t map[rows][cols];
+typedef struct Hexagon{
+    int cost;
+    Air_Route_t air_routes[NUM_AIR_ROUTES-1];
+} Hexagon_t;
 
-// Per ogni esagono che ha rotte aeree
-Air_Route_t air_routes[5];  // Dentro la struct Hexagon o separato
-int num_air_routes;
-*/
 
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
 Hexagon_t **map = NULL;  // matrice dinamica
@@ -55,7 +48,7 @@ int cols = 0, rows = 0;
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
     if (map != NULL) {
-        for (int i = 0; i < rows; i++) {
+        for(int i=0; i<rows; i++) {
             free(map[i]);
         }
         free(map);
@@ -65,13 +58,23 @@ void init(int M, int N) {
     rows = N;
 
     map = malloc(sizeof(Hexagon_t *)*rows);   // array di puntatori alle righe
-    for (int i = 0; i < rows; i++) {
+    for (int i=0; i<rows; i++) {
         map[i] = malloc(sizeof(Hexagon_t)*cols);  // ogni riga ha 'cols' elementi
     }
 
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
+    for (int i=0; i<rows; i++) {
+        for (int j=0; j<cols; j++) {
             map[i][j].cost = 1;
+
+        // -1 valore flag per le iniz delle routes 
+        for (int k = 0; k < NUM_AIR_ROUTES - 1; k++) {
+            map[i][j].air_routes[k].part_x = -1;
+            map[i][j].air_routes[k].part_y = -1;
+            map[i][j].air_routes[k].dest_x = -1;
+            map[i][j].air_routes[k].dest_y = -1;
+            map[i][j].air_routes[k].cost   = -1;
+        }
+
             printf("%d ", map[i][j].cost); //debug
         }
         printf("\n"); //debug
@@ -83,9 +86,8 @@ void init(int M, int N) {
 /*--------------------------------------------------------------CHANGE COST------------------------------------------------------------*/
 
 void change_cost(int x, int y, int v, int r){
-    if(v < -10 || v > 10 || r <= 0 || map==NULL || x>=cols || y>=rows){
-        printf("KO");
-        return;
+    if(v <-10 || v >10 || r <= 0 || map==NULL || x>=cols || y>=rows){
+        printf("KO\n");
     }
 
 
@@ -97,7 +99,7 @@ void change_cost(int x, int y, int v, int r){
                 
                 interpolation_factor = 1.0f - ((float)distance_hex / (float)r);
 
-                if(interpolation_factor < 0.0f) {
+                if(interpolation_factor < 0.0f){
                     interpolation_factor = 0.0f; 
                 }
                 
@@ -159,9 +161,49 @@ int dist_hex(int xa, int ya, int xb, int yb){
 
 }
 
-void toggle_air_route(int x1, int y1, int x2, int y2){}
+void toggle_air_route(int xp, int yp, int xd, int yd){
+    int flag=0; //no air routes for that hex
 
-int travel_cost(int xp, int yp, int xd, int yd){}
+    for(int i=0; i< NUM_AIR_ROUTES-1; i++){
+        if(map[xp][yp].air_routes[i].part_x != -1 && map[xp][yp].air_routes[i].part_y != -1 &&
+           map[xd][yd].air_routes[i].dest_x != -1 && map[xd][yd].air_routes[i].dest_y != -1){
+            flag=1; //there is an air route for that track
+        }
+    }
+
+    if(flag==0){
+        /*ADD AIR ROUTE*/
+
+
+
+
+
+
+    }else if(flag==1){
+        /*DELETE AIR ROUTE*/
+
+
+
+
+        
+    }
+    
+
+}
+
+
+//calculate terrestrial costs (TODO: aggiungiere anche rotte aeree)
+int travel_cost(int xp, int yp, int xd, int yd){
+
+    if(xp==xd && yp==yd){
+        return 0;
+    }
+    if(map[xd][yd].cost == 0){
+        return -1;
+    }
+
+
+}
 
 int main(){
     char comando[MAX_CHAR];
