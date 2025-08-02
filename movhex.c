@@ -47,7 +47,7 @@ typedef struct Hexagon{
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
 Hexagon_t **map = NULL;  // matrice dinamica
 int cols = 0, rows = 0; //num air routes fot that hex;
-
+int k=1;
 
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
@@ -83,6 +83,7 @@ void init(int M, int N) {
 void change_cost(int x, int y, int v, int r){
     if(v <-10 || v >10 || r <= 0 || map==NULL || x>=cols || y>=rows || x<0 || y<0){
         printf("KO\n");
+        return;
     }
 
 
@@ -161,6 +162,12 @@ int dist_hex(int xa, int ya, int xb, int yb){
 void toggle_air_route(int xp, int yp, int xd, int yd){
     if(map==NULL || xp>=cols || yp>=rows || xd>=cols || yd>=rows || xp<0 || yp<0 || xd<0 || yd<0){
         printf("KO\n");
+        return;
+    }
+
+    if(map[xp][yp].num_air_routes >= 5){
+        printf("KO\n");
+        return;
     }
 
     //inserisci nuova route (la prima)
@@ -181,45 +188,50 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
 
         map[xp][yp].num_air_routes++;
 
-        //DEBUG
+        
         printf("OK: aggiunta la prima rotta in questo hex\n");
-    }
+        printf("costo: %d", map[xp][yp].air_routes[0].cost);
+        printf("\n");
+        printf("%d %d", map[xp][yp].air_routes[0].dest_x, map[xp][yp].air_routes[0].dest_y);
+        printf("\n");
+        
 
-    if(map[xp][yp].num_air_routes >= 5){
-        printf("KO\n");
-        return;
-    }
+    }else if(map[xp][yp].air_routes != NULL && map[xp][yp].num_air_routes != 0 && map[xp][yp].num_air_routes < 5){
+        // inserisci una nuova rotta
+            map[xp][yp].air_routes = realloc(map[xp][yp].air_routes,(map[xp][yp].num_air_routes + 1) * sizeof(Air_Route_t));
+            if(!map[xp][yp].air_routes){
+                return;
+            }
 
-    //inserisci nuova route
-    if(map[xp][yp].air_routes != NULL && map[xp][yp].num_air_routes != 0 && map[xp][yp].num_air_routes < 5){
+            map[xp][yp].air_routes[map[xp][yp].num_air_routes].part_x = xp;
+            map[xp][yp].air_routes[map[xp][yp].num_air_routes].part_y = yp;
+            map[xp][yp].air_routes[map[xp][yp].num_air_routes].dest_x = xd;
+            map[xp][yp].air_routes[map[xp][yp].num_air_routes].dest_y = yd;
+            map[xp][yp].air_routes[map[xp][yp].num_air_routes].cost = calculate_air_route_cost(xp, yp);
 
-        map[xp][yp].air_routes = realloc(map[xp][yp].air_routes,(map[xp][yp].num_air_routes + 1) * sizeof(Air_Route_t));
-        if(!map[xp][yp].air_routes){
-            return;
-        }
-
-        map[xp][yp].air_routes[map[xp][yp].num_air_routes].part_x = xp;
-        map[xp][yp].air_routes[map[xp][yp].num_air_routes].part_y = yp;
-        map[xp][yp].air_routes[map[xp][yp].num_air_routes].dest_x = xd;
-        map[xp][yp].air_routes[map[xp][yp].num_air_routes].dest_y = yd;
-        map[xp][yp].air_routes[map[xp][yp].num_air_routes].cost = calculate_air_route_cost(xp, yp);
-
-        map[xp][yp].num_air_routes++;
-
-        //DEBUG
-        printf("OK: aggiunta una nuova rotta in questo hex\n");
-    }
-
-    //checking for existing air route and deleting it
-    int flag=0;
-    for(int i=0; i<map[xp][yp].num_air_routes; i++){
-        if(map[xp][yp].air_routes[i].dest_x ==xd && map[xp][yp].air_routes[i].dest_y == yd){
-            remove_air_route(xp, yp, xd, yd, i);
+            map[xp][yp].num_air_routes++;
 
             //DEBUG
-            printf("OK: tolta una rotta in questo hex\n");
-        }
+            printf("OK: aggiunta una nuova rotta in questo hex\n");
+            printf("costo: %d", map[xp][yp].air_routes[k].cost);
+            printf("\n");
+            printf("%d %d", map[xp][yp].air_routes[k].dest_x, map[xp][yp].air_routes[k].dest_y);
+            printf("\n");
+            k++;
+    }else{
+        //checking for existing air route and deleting it
+        int flag=0;
+        for(int i=0; i<map[xp][yp].num_air_routes; i++){
+            if(map[xp][yp].air_routes[i].dest_x ==xd && map[xp][yp].air_routes[i].dest_y == yd){
+                remove_air_route(xp, yp, xd, yd, i);
 
+                /*
+                //DEBUG
+                printf("OK: tolta una rotta in questo hex\n");
+                */
+            }
+
+        }
     }
 
     printf("OK\n");
@@ -227,20 +239,29 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
 }
 
 int calculate_air_route_cost(int xp, int yp){
-    int avg=0;
-
-    for(int i=0; i<map[xp][yp].num_air_routes; i++){
-        avg += map[xp][yp].air_routes[i].cost;
+    int sum_connection_costs = 0;
+    
+    for(int i = 0; i < map[xp][yp].num_air_routes; i++){
+        sum_connection_costs += map[xp][yp].air_routes[i].cost;
     }
-    avg += map[xp][yp].cost;
-    avg /= ( abs(map[xp][yp].num_air_routes) +1);
-
-    if(avg>100){
-        avg=100;
-    }else if(avg<0){
-        avg=0;
+    
+    int avg = (sum_connection_costs + map[xp][yp].cost) / (map[xp][yp].num_air_routes + 1);
+    
+    if(avg > 100){
+        avg = 100;
+    } else if(avg < 0){
+        avg = 0;
     }
 
+    /*
+    printf("DEBUG: num_air_routes = %d\n", map[xp][yp].num_air_routes);
+    printf("DEBUG: sum_connection_costs = %d\n", sum_connection_costs);
+    printf("DEBUG: map[xp][yp].cost = %d\n", map[xp][yp].cost);
+    printf("DEBUG: denominatore = %d\n", map[xp][yp].num_air_routes + 1);
+    printf("DEBUG: avg calcolato = %d\n", avg);
+    */
+    
+    
     return avg;
 }
 
@@ -295,29 +316,31 @@ int main(){
 
     //condizione di fine ricez comandi.....
     while(1){
-    scanf("%s", comando);
-    if(strcmp(comando, "init")==0){
-        int x, y;
-        if(scanf("%d %d", &x, &y)==2){
-            init(x, y);
-        }
-    }else if(strcmp(comando, "change_cost")==0){
-        int x, y, v, r;
-        if(scanf("%d %d %d %d", &x, &y, &v, &r)==4){
-            change_cost(x, y, v, r);
-        }
-    }else if(strcmp(comando, "travel_cost")==0){
-        int xp, yp, xd, yd;
-        if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
-            travel_cost(xp, yp, xd, yd);
-        }
-    }else if(strcmp(comando, "toggle_air_route")==0){
-        int x1, y1, x2, y2;
-        if(scanf("%d %d %d %d", &x1, &y1, &x2, &y2)==4){
-            toggle_air_route(x1, y1, x2, y2);
+        scanf("%s", comando);
+        if(strcmp(comando, "init")==0){
+            int x, y;
+            if(scanf("%d %d", &x, &y)==2){
+                init(x, y);
+            }
+        }else if(strcmp(comando, "change_cost")==0){
+            int x, y, v, r;
+            if(scanf("%d %d %d %d", &x, &y, &v, &r)==4){
+                change_cost(x, y, v, r);
+            }
+        }else if(strcmp(comando, "travel_cost")==0){
+            int xp, yp, xd, yd;
+            if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
+                travel_cost(xp, yp, xd, yd);
+            }
+        }else if(strcmp(comando, "toggle_air_route")==0){
+            int x1, y1, x2, y2;
+            if(scanf("%d %d %d %d", &x1, &y1, &x2, &y2)==4){
+                toggle_air_route(x1, y1, x2, y2);
+            }
         }
     }
-    }
+
+
     return 0;
 }
 
