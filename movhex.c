@@ -39,7 +39,7 @@ typedef struct Priority_Queue{
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
 Hexagon_t **map = NULL;  // matrice dinamica
 int cols = 0, rows = 0; //num air routes fot that hex;
-int k=1; //for debugging
+//int k=1; //for debugging
 
 // Offsets map setup
 int hex_offsets_even[6][2] = {
@@ -119,13 +119,16 @@ void init(int M, int N) {
         }
     }
 
-    // stampa di debug con (0,0) in basso-a-sx
+    /*
+    stampa di debug con (0,0) in basso-a-sx
     for (int y = rows - 1; y >= 0; y--) {
         for (int x = 0; x < cols; x++) {
             printf("%d ", map[y][x].cost);
         }
         printf("\n");
     }
+    */ 
+    
 
     printf("OK\n");
 }
@@ -167,13 +170,14 @@ void change_cost(int x, int y, int v, int r){
     }
 
 
-    //print map DEBUG:
-    for (int i = rows - 1; i >= 0; i--) {             // stampa dall'alto verso il basso
+    /*print map DEBUG:
+    for (int i = rows - 1; i >= 0; i--) {            
         for (int j = 0; j < cols; j++) {
             printf("%d ", map[i][j].cost); // debug
         }
         printf("\n"); // debug
     }
+    */
     printf("OK\n");
 }
 
@@ -204,81 +208,58 @@ int dist_hex(int xa, int ya, int xb, int yb) {
 /*--------------------------------------------------------------TOGGLE AIR ROUTE------------------------------------------------------------*/
 
 void toggle_air_route(int xp, int yp, int xd, int yd){
-    if(map==NULL || xp>=cols || yp>=rows || xd>=cols || yd>=rows || xp<0 || yp<0 || xd<0 || yd<0){
+
+    if (map == NULL || !is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
         printf("KO\n");
         return;
     }
 
-    if(map[yp][xp].num_air_routes >= 5){
-        printf("KO\n");
-        return;
-    }
-
-    //inserisci nuova route (la prima)
-    if(map[yp][xp].air_routes == NULL){
-
-        map[yp][xp].num_air_routes=0;
-
-        map[yp][xp].air_routes = malloc(sizeof(Air_Route_t));
-        if(!map[yp][xp].air_routes){
-            return;
-        }
-
-        map[yp][xp].air_routes[map[yp][xp].num_air_routes].part_x=xp;
-        map[yp][xp].air_routes[map[yp][xp].num_air_routes].part_y=yp;
-        map[yp][xp].air_routes[map[yp][xp].num_air_routes].dest_x=xd;
-        map[yp][xp].air_routes[map[yp][xp].num_air_routes].dest_y=yd;
-        map[yp][xp].air_routes[map[yp][xp].num_air_routes].cost  = calculate_air_route_cost(xp, yp);
-
-        map[yp][xp].num_air_routes++;
-
-        
-        printf("OK: aggiunta la prima rotta in questo hex\n");
-        printf("costo: %d", map[yp][xp].air_routes[0].cost);
-        printf("\n");
-        printf("%d %d", map[yp][xp].air_routes[0].dest_x, map[yp][xp].air_routes[0].dest_y);
-        printf("\n");
-        
-
-    }else if(map[yp][xp].air_routes != NULL && map[yp][xp].num_air_routes != 0 && map[yp][xp].num_air_routes < 5){
-        // inserisci una nuova rotta
-            map[yp][xp].air_routes = realloc(map[yp][xp].air_routes,(map[yp][xp].num_air_routes + 1) * sizeof(Air_Route_t));
-            if(!map[yp][xp].air_routes){
+    // If exists delete
+    if (map[yp][xp].air_routes != NULL) {
+        for (int i = 0; i < map[yp][xp].num_air_routes; i++) {
+            if (map[yp][xp].air_routes[i].dest_x == xd && map[yp][xp].air_routes[i].dest_y == yd) {
+                remove_air_route(xp, yp, xd, yd, i);
+                printf("OK: tolta una rotta\n");    //debug
                 return;
             }
-
-            map[yp][xp].air_routes[map[yp][xp].num_air_routes].part_x = xp;
-            map[yp][xp].air_routes[map[yp][xp].num_air_routes].part_y = yp;
-            map[yp][xp].air_routes[map[yp][xp].num_air_routes].dest_x = xd;
-            map[yp][xp].air_routes[map[yp][xp].num_air_routes].dest_y = yd;
-            map[yp][xp].air_routes[map[yp][xp].num_air_routes].cost  = calculate_air_route_cost(xp, yp);
-
-            map[yp][xp].num_air_routes++;
-
-            //DEBUG
-            printf("OK: aggiunta una nuova rotta in questo hex\n");
-            printf("costo: %d", map[yp][xp].air_routes[k].cost);
-            printf("\n");
-            printf("%d %d", map[yp][xp].air_routes[k].dest_x, map[yp][xp].air_routes[k].dest_y);
-            printf("\n");
-            k++;
-    }else{
-        //checking for existing air route and deleting it
-        int flag=0;
-        for(int i=0; i<map[yp][xp].num_air_routes; i++){
-            if(map[yp][xp].air_routes[i].dest_x == xd && map[yp][xp].air_routes[i].dest_y == yd){
-                remove_air_route(xp, yp, xd, yd, i);
-
-                /*
-                //DEBUG
-                printf("OK: tolta una rotta in questo hex\n");
-                */
-            }
-
         }
     }
 
-    printf("OK\n");
+    if (map[yp][xp].num_air_routes >= NUM_AIR_ROUTES) {
+        printf("KO\n");
+        return;
+    }
+
+    // First route
+    if (map[yp][xp].air_routes == NULL) {
+        map[yp][xp].air_routes = malloc(sizeof(Air_Route_t));
+    } else {
+        map[yp][xp].air_routes = realloc(
+            map[yp][xp].air_routes,
+            (map[yp][xp].num_air_routes + 1) * sizeof(Air_Route_t));
+    }
+
+    if (!map[yp][xp].air_routes) {
+        printf("KO\n");
+        return;
+    }
+
+    int idx = map[yp][xp].num_air_routes;
+    map[yp][xp].air_routes[idx].part_x = xp;
+    map[yp][xp].air_routes[idx].part_y = yp;
+    map[yp][xp].air_routes[idx].dest_x = xd;
+    map[yp][xp].air_routes[idx].dest_y = yd;
+    map[yp][xp].air_routes[idx].cost  = calculate_air_route_cost(xp, yp);
+
+    map[yp][xp].num_air_routes++;
+
+
+    //debug
+    if (idx == 0) {
+        printf("OK: aggiunta la prima rotta\n");
+    } else {
+        printf("OK: aggiunta una nuova rotta\n");
+    }
     
 }
 
@@ -379,7 +360,6 @@ int travel_cost(int xp, int yp, int xd, int yd){
             free_distances_and_visited();
             pq_free(&pq);
             
-            printf("%d", result);
             return result;
         }
 
