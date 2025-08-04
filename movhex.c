@@ -3,31 +3,11 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+#include <limits.h>
 
 #define MAX_CHAR 16
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
 #define NUM_AIR_ROUTES 5
-
-/*---------------------------------------------------------FUNCTIONS DECLARATION----------------------------------------------------*/
-
-// main functions:
-
-void init(int, int);
-
-void change_cost(int, int, int, int);
-
-void toggle_air_route(int, int, int, int);
-
-int travel_cost(int, int, int, int);
-
-
-//utils funcionts:
-
-int calculate_air_route_cost(int, int);
-
-void remove_air_route(int, int, int, int, int);
-
-int dist_hex(int, int, int, int);
 
 
 /*---------------------------------------------------------DATA STRUCTURES------------------------------------------------------*/
@@ -61,8 +41,59 @@ Hexagon_t **map = NULL;  // matrice dinamica
 int cols = 0, rows = 0; //num air routes fot that hex;
 int k=1; //for debugging
 
+// Offsets map setup
+int hex_offsets_even[6][2] = {
+    {1, 0},   // Destra
+    {-1, 0},  // Sinistra
+    {0, -1},  // Giù-sinistra
+    {1, -1},  // Giù-destra  
+    {0, 1},   // Su-sinistra
+    {1, 1}    // Su-destra
+};
+
+int hex_offsets_odd[6][2] = {
+    {1, 0},   // Destra
+    {-1, 0},  // Sinistra
+    {-1, -1}, // Giù-sinistra
+    {0, -1},  // Giù-destra
+    {-1, 1},  // Su-sinistra  
+    {0, 1}    // Su-destra
+};
+
+
 int** distances; 
 bool** visited; //true if processed
+
+/*---------------------------------------------------------FUNCTIONS DECLARATION----------------------------------------------------*/
+
+void init(int, int);
+
+
+void change_cost(int, int, int, int);
+//utils:
+int dist_hex(int, int, int, int);
+
+
+void toggle_air_route(int, int, int, int);
+//utils:
+int calculate_air_route_cost(int, int);
+void remove_air_route(int, int, int, int, int);
+
+
+int travel_cost(int, int, int, int);
+//utils:
+void init_distances_and_visited();
+void free_distances_and_visited();
+void pq_init(Priority_Queue_t*, int);
+void pq_free(Priority_Queue_t*);
+void pq_push(Priority_Queue_t*, int, int, int);
+HeapNode_t pq_pop(Priority_Queue_t*);
+void heap_up(HeapNode_t*, int);
+void heap_down(HeapNode_t*, int, int) ;
+bool pq_empty(Priority_Queue_t*);
+bool is_valid_hex(int, int);
+int get_neighbors(int, int, HeapNode_t*);
+
 
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
@@ -314,50 +345,212 @@ void remove_air_route(int xp, int yp, int xd, int yd, int i){
 
 /*--------------------------------------------------------------TRAVEL COST------------------------------------------------------------*/
 
-
-
 int travel_cost(int xp, int yp, int xd, int yd){
     if(xp==xd && yp==yd){
         return 0;
     }
-    if(map[yd][xd].cost == 0){
+    if(map[yd][xd].cost == 0 || is_valid_hex(xp, yp) || is_valid_hex(xd, yd)){
         return -1;
     }
-}
-/*
-    //dijkstra algotithm
 
-    for(int i=0; i<rows; i++){
-        for(int j=0; j<cols; j++){
-            distances = 0;
-            visited = false;
-        }
-    }
+    // DIJKSTRA ALGORITHM
+
+    //iniz:
+    init_distances_and_visited();
 
     Priority_Queue_t pq;
-    //pq malloc etc...
+    pq_init(&pq, rows*cols);
 
-    while(pq.capacity==0){
-        HeapNode_t curr= pq_pop(pq);
+    distances[yp][xp] = 0;
+    pq_push(&pq, xp, yp, 0);
 
-        if(visited[curr.x][curr.y]) continue;
-        visited[curr.x][curr.y] = true;
+    while (!pq_empty(&pq)) {
+        HeapNode_t current = pq_pop(&pq);
 
-        if(curr.x == xd && curr.y == yd){
-            return curr.distance;
+        // skip if visited
+        if (visited[current.y][current.x]) continue;
+        visited[current.y][current.x] = true;
+
+        // arrived 
+        if (current.x == xd && current.y == yd) {
+            int result = current.distance;
+            
+            // Cleanup
+            free_distances_and_visited();
+            pq_free(&pq);
+            
+            printf("%d", result);
+            return result;
         }
 
-        //neighbors
-        HeapNode_t neighbors[11];
-        int num_neighbors = get_neighbors(curr.x, curr.y, neighbors);
+        // Neighbors
+        HeapNode_t neighbors[11]; // max 6 terrestri + 5 aerei
+        int num_neighbors = get_neighbors(current.x, current.y, neighbors);
 
-        //.....
+        for (int i = 0; i < num_neighbors; i++) {
+            int nx = neighbors[i].x;
+            int ny = neighbors[i].y;
+            int new_dist = current.distance + neighbors[i].distance;
+            
+            if (new_dist < distances[ny][nx]) {
+                distances[ny][nx] = new_dist;
+                pq_push(&pq, nx, ny, new_dist);
+            }
+        }
+    }
+
+    // Destinazione irraggiungibile
+    free_distances_and_visited();
+    pq_free(&pq);
+    return -1;
+}
+
+
+// Priority queue functions
+
+void pq_init(Priority_Queue_t* pq, int capacity) {
+    pq->heap = (HeapNode_t*)malloc(capacity * sizeof(HeapNode_t));
+    pq->size = 0;
+    pq->capacity = capacity;
+}
+
+void pq_free(Priority_Queue_t* pq) {
+    free(pq->heap);
+    pq->heap = NULL;
+    pq->size = 0;
+}
+
+void heap_up(HeapNode_t* heap, int index) {
+    if (index == 0) return;
+    
+    int parent = (index - 1) / 2;
+    if (heap[index].distance < heap[parent].distance) {
+        //swap
+        HeapNode_t temp = heap[index];
+        heap[index] = heap[parent];
+        heap[parent] = temp;
+        
+        heap_up(heap, parent);
+    }
+}
+
+void heap_down(HeapNode_t* heap, int size, int index) {
+    int left = 2 * index + 1;
+    int right = 2 * index + 2;
+    int smallest = index;
+    
+    if (left < size && heap[left].distance < heap[smallest].distance)
+        smallest = left;
+    
+    if (right < size && heap[right].distance < heap[smallest].distance)
+        smallest = right;
+    
+    if (smallest != index) {
+        //Swap
+        HeapNode_t temp = heap[index];
+        heap[index] = heap[smallest];
+        heap[smallest] = temp;
+        
+        heap_down(heap, size, smallest);
+    }
+}
+
+void pq_push(Priority_Queue_t* pq, int x, int y, int dist) {
+    if (pq->size >= pq->capacity) return; // Queue piena
+    
+    pq->heap[pq->size].x = x;
+    pq->heap[pq->size].y = y;
+    pq->heap[pq->size].distance = dist;
+    
+    heap_up(pq->heap, pq->size);
+    pq->size++;
+}
+
+HeapNode_t pq_pop(Priority_Queue_t* pq) {
+    HeapNode_t min = pq->heap[0];
+    
+    pq->size--;
+    pq->heap[0] = pq->heap[pq->size];
+    
+    if (pq->size > 0) {
+        heap_down(pq->heap, pq->size, 0);
     }
     
-
+    return min;
 }
-*/
 
+bool pq_empty(Priority_Queue_t* pq) {
+    return pq->size == 0;
+}
+
+void init_distances_and_visited() {
+    distances = (int**)malloc(rows * sizeof(int*));
+
+    for (int i = 0; i < rows; i++) {
+        distances[i] = (int*)malloc(cols * sizeof(int));
+        for (int j = 0; j < cols; j++) {
+            distances[i][j] = INT_MAX; 
+        }
+    }
+    
+    visited = (bool**)malloc(rows * sizeof(bool*));
+    for (int i = 0; i < rows; i++) {
+        visited[i] = (bool*)malloc(cols * sizeof(bool));
+        for (int j = 0; j < cols; j++) {
+            visited[i][j] = false;
+        }
+    }
+}
+
+void free_distances_and_visited() {
+    for (int i = 0; i < rows; i++) {
+        free(distances[i]);
+    }
+    free(distances);
+    
+    // Libera visited
+    for (int i = 0; i < rows; i++) {
+        free(visited[i]);
+    }
+    free(visited);
+}
+
+bool is_valid_hex(int x, int y) {
+    return x >= 0 && x < cols && y >= 0 && y < rows;
+}
+
+int get_neighbors(int x, int y, HeapNode_t* neighbors) {
+    int count = 0;
+    
+    int (*offsets)[2] = (y % 2 == 0) ? hex_offsets_even : hex_offsets_odd;
+    
+    // Terrestrial
+    for (int i = 0; i < 6; i++) {
+        int nx = x + offsets[i][0];
+        int ny = y + offsets[i][1];
+        
+        if (is_valid_hex(nx, ny) && map[y][x].cost > 0) {
+            neighbors[count].x = nx;
+            neighbors[count].y = ny;
+            neighbors[count].distance = map[y][x].cost;
+            count++;
+        }
+    }
+    
+    // Air routes
+    for (int i = 0; i < map[y][x].num_air_routes; i++) {
+        Air_Route_t* route = &map[y][x].air_routes[i];
+        
+        if (is_valid_hex(route->dest_x, route->dest_y) && route->cost > 0) {
+            neighbors[count].x = route->dest_x;
+            neighbors[count].y = route->dest_y;
+            neighbors[count].distance = route->cost;
+            count++;
+        }
+    }
+    
+    return count;
+}
 
 //------------------------------------------------------------MAIN------------------------------------------------------------
 
@@ -381,7 +574,7 @@ int main(){
         }else if(strcmp(comando, "travel_cost")==0){
             int xp, yp, xd, yd; 
             if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
-                travel_cost(xp, yp, xd, yd);
+                printf("%d\n", travel_cost(xp, yp, xd, yd));
             }
         }else if(strcmp(comando, "toggle_air_route")==0){
             int xp, yp, xd, yd; 
