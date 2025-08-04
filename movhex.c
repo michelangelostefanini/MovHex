@@ -142,7 +142,7 @@ void change_cost(int x, int y, int v, int r){
     for (int i=0; i <rows; i++) {
         for (int j=0; j <cols; j++) {
             int distance_hex = dist_hex(j, i, x, y);
-            if (distance_hex < r) {
+            if (distance_hex <= r) {
                 float interpolation_factor;
                 
                 interpolation_factor = 1.0f - ((float)distance_hex / (float)r);
@@ -178,35 +178,27 @@ void change_cost(int x, int y, int v, int r){
 }
 
 
-int dist_hex(int xa, int ya, int xb, int yb){
-    int dist=0;
+int dist_hex(int xa, int ya, int xb, int yb) {
+    /*
+       Coordinate system: even-r offset (righe dispari offsetate di mezzo hex) where X è la colonna e Y la riga.
+       Conversione a coordinate cubiche e distanza di Manhattan / 2.
+    */
 
-    if(xa == xb && ya == yb){
-        return 0;
-    }
- 
-    int dist_x = xb - xa;
-    int dist_y = yb - ya;
+    // Convert first point
+    int x1 = xa - (ya + (ya & 1)) / 2;
+    int z1 = ya;
+    int y1 = -x1 - z1;
 
-    //offsets:
-    if (((xa&1) != (ya&1))){ // righe con parità diversa
-        if((xa&1) != 0) { // xa è dispari
-          dist_y += dist_x / 2;
-        } else { // xa è pari
-            dist_y += (dist_x + 1) / 2;
-        }
-    }else{ // righe con stessa parità
-    dist_y += dist_x / 2;
-    }
+    // Convert second point
+    int x2 = xb - (yb + (yb & 1)) / 2;
+    int z2 = yb;
+    int y2 = -x2 - z2;
 
-    // Formula della distanza esagonale
-    if ((dist_x >= 0 && dist_y >= 0) || (dist_x <= 0 && dist_y <= 0)) {
-        return (abs(dist_x) > abs(dist_y)) ? abs(dist_x) : abs(dist_y);
-    } else {
-        return abs(dist_x) + abs(dist_y);
-    }
+    int dx = x2 - x1;
+    int dy = y2 - y1;
+    int dz = z2 - z1;
 
-
+    return (abs(dx) + abs(dy) + abs(dz)) / 2;
 }
 
 /*--------------------------------------------------------------TOGGLE AIR ROUTE------------------------------------------------------------*/
@@ -346,10 +338,18 @@ void remove_air_route(int xp, int yp, int xd, int yd, int i){
 /*--------------------------------------------------------------TRAVEL COST------------------------------------------------------------*/
 
 int travel_cost(int xp, int yp, int xd, int yd){
-    if(xp==xd && yp==yd){
+    // Coordinate uguali → costo 0
+    if (xp == xd && yp == yd) {
         return 0;
     }
-    if(map[yd][xd].cost == 0 || is_valid_hex(xp, yp) || is_valid_hex(xd, yd)){
+
+    // Verifica che le coordinate siano dentro la mappa
+    if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
+        return -1; // coordinate non valide
+    }
+
+    // Se l’esagono di destinazione è impraticabile (costo 0) il viaggio è impossibile
+    if (map[yd][xd].cost == 0) {
         return -1;
     }
 
