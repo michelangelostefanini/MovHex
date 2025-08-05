@@ -17,7 +17,6 @@ typedef struct Air_Route{
     int cost;
 } Air_Route_t;
 
-
 typedef struct Hexagon{
     int cost;
     Air_Route_t *air_routes;
@@ -319,6 +318,9 @@ void remove_air_route(int xp, int yp, int xd, int yd, int i){
 /*--------------------------------------------------------------TRAVEL COST------------------------------------------------------------*/
 
 int travel_cost(int xp, int yp, int xd, int yd){
+    if(map==NULL){
+        return -1;
+    }
     // Coordinate uguali → costo 0
     if (xp == xd && yp == yd) {
         return 0;
@@ -327,11 +329,6 @@ int travel_cost(int xp, int yp, int xd, int yd){
     // Verifica che le coordinate siano dentro la mappa
     if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
         return -1; // coordinate non valide
-    }
-
-    // Se l’esagono di destinazione è impraticabile (costo 0) il viaggio è impossibile
-    if (map[yd][xd].cost == 0) {
-        return -1;
     }
 
     // DIJKSTRA ALGORITHM
