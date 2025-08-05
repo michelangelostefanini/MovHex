@@ -98,6 +98,12 @@ int get_neighbors(int, int, HeapNode_t*);
 void init(int M, int N) {
     if (map != NULL) {
         for(int i=0; i<rows; i++) {
+            /* Free any air routes previously allocated for each hexagon */
+            for(int j = 0; j < cols; j++) {
+                if(map[i][j].air_routes != NULL){
+                    free(map[i][j].air_routes);
+                }
+            }
             free(map[i]);
         }
         free(map);
@@ -111,10 +117,12 @@ void init(int M, int N) {
         map[i] = malloc(sizeof(Hexagon_t)*cols);  // ogni riga ha 'cols' elementi
     }
 
-    // inizializzo tutti i costi a 1
+    // iniz
     for (int y = 0; y < rows; y++) {
         for (int x = 0; x < cols; x++) {
             map[y][x].cost = 1;
+            map[y][x].air_routes = NULL; // initialize pointer
+            map[y][x].num_air_routes = 0; // initialize count
         }
     }
 

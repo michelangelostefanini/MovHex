@@ -19,7 +19,7 @@ TEST_FILES := $(wildcard $(TEST_DIR)/*.txt)
 TEST_NAMES := $(basename $(notdir $(TEST_FILES)))
 
 $(BIN): $(SRC)
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -lm -o $@
 
 # Ensure result directory exists before running any test
 $(RESULT_DIR):
