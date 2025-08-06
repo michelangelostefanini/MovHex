@@ -41,22 +41,41 @@ int cols = 0, rows = 0; //num air routes fot that hex;
 //int k=1; //for debugging
 
 // Offsets map setup
+/* Offset tables for even-r horizontal layout (x = column, y = row)
+   Reference: https://www.redblobgames.com/grids/hex-grids/
+
+   For y even (row even):
+       E  (+1,  0)
+       W  (-1,  0)
+       NE ( 0, +1)
+       NW (-1, +1)
+       SE ( 0, -1)
+       SW (-1, -1)
+
+   For y odd (row odd):
+       E  (+1,  0)
+       W  (-1,  0)
+       NE (+1, +1)
+       NW ( 0, +1)
+       SE (+1, -1)
+       SW ( 0, -1)
+*/
 int hex_offsets_even[6][2] = {
-    {1, 0},   // Destra
-    {-1, 0},  // Sinistra
-    {0, -1},  // Giù-sinistra
-    {1, -1},  // Giù-destra  
-    {0, 1},   // Su-sinistra
-    {1, 1}    // Su-destra
+    { 1,  0},  // E
+    {-1,  0},  // W
+    { 0,  1},  // NE
+    {-1,  1},  // NW
+    { 0, -1},  // SE
+    {-1, -1}   // SW
 };
 
 int hex_offsets_odd[6][2] = {
-    {1, 0},   // Destra
-    {-1, 0},  // Sinistra
-    {-1, -1}, // Giù-sinistra
-    {0, -1},  // Giù-destra
-    {-1, 1},  // Su-sinistra  
-    {0, 1}    // Su-destra
+    { 1,  0},  // E
+    {-1,  0},  // W
+    { 1,  1},  // NE
+    { 0,  1},  // NW
+    { 1, -1},  // SE
+    { 0, -1}   // SW
 };
 
 
