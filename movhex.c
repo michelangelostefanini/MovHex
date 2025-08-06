@@ -153,28 +153,25 @@ void change_cost(int x, int y, int v, int r){
         for (int j=0; j <cols; j++) {
             int distance_hex = dist_hex(j, i, x, y);
             if (distance_hex <= r) {
-                float interpolation_factor;
-                
-                interpolation_factor = 1.0f - ((float)distance_hex / (float)r);
+                float interpolation_factor = 1.0f - ((float)distance_hex / (float)r);
 
                 if(interpolation_factor < 0.0f){
                     interpolation_factor = 0.0f; 
                 }
-                
+
                 float val = v * interpolation_factor;
+
                 if(v > 0){
                     map[i][j].cost += (int)floor(val);
                     if(map[i][j].cost >= 100) map[i][j].cost = 100;
                 }else{
                     map[i][j].cost += (int)floor(val);
-                    if(map[i][j].cost <0){
-                        map[i][j].cost=0;
-                    }
-                    
+                    if(map[i][j].cost < 0) map[i][j].cost = 0;
+                }
+
                 }
             }
         }
-    }
 
 
     /*print map DEBUG:
@@ -226,7 +223,8 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
         for (int i = 0; i < map[yp][xp].num_air_routes; i++) {
             if (map[yp][xp].air_routes[i].dest_x == xd && map[yp][xp].air_routes[i].dest_y == yd) {
                 remove_air_route(xp, yp, xd, yd, i);
-                printf("OK: tolta una rotta\n");    //debug
+                //printf("OK: tolta una rotta\n");    //debug
+                printf("OK\n");
                 return;
             }
         }
@@ -261,12 +259,14 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
     map[yp][xp].num_air_routes++;
 
 
-    //debug
+    /*debug
     if (idx == 0) {
         printf("OK: aggiunta la prima rotta\n");
     } else {
         printf("OK: aggiunta una nuova rotta\n");
     }
+    */
+   printf("OK\n");
     
 }
 
@@ -394,6 +394,8 @@ int travel_cost(int xp, int yp, int xd, int yd){
 // Priority queue functions
 
 void pq_init(Priority_Queue_t* pq, int capacity) {
+    /* Garantiamo una capacità minima per evitare realloc all'inizio */
+    if (capacity < 16) capacity = 16;
     pq->heap = (HeapNode_t*)malloc(capacity * sizeof(HeapNode_t));
     pq->size = 0;
     pq->capacity = capacity;
@@ -441,12 +443,22 @@ void heap_down(HeapNode_t* heap, int size, int index) {
 }
 
 void pq_push(Priority_Queue_t* pq, int x, int y, int dist) {
-    if (pq->size >= pq->capacity) return; // Queue piena
-    
+    /* Se necessario, raddoppia la capacità dell'array */
+    if (pq->size >= pq->capacity) {
+        int new_capacity = pq->capacity * 2;
+        HeapNode_t *new_heap = (HeapNode_t*)realloc(pq->heap, new_capacity * sizeof(HeapNode_t));
+        if (new_heap == NULL) {
+            /* In caso di fallimento di realloc non inseriamo il nuovo elemento per non corrompere la memoria */
+            return;
+        }
+        pq->heap = new_heap;
+        pq->capacity = new_capacity;
+    }
+
     pq->heap[pq->size].x = x;
     pq->heap[pq->size].y = y;
     pq->heap[pq->size].distance = dist;
-    
+
     heap_up(pq->heap, pq->size);
     pq->size++;
 }
@@ -523,14 +535,16 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     }
     
     // Air routes
-    for (int i = 0; i < map[y][x].num_air_routes; i++) {
-        Air_Route_t* route = &map[y][x].air_routes[i];
-        
-        if (is_valid_hex(route->dest_x, route->dest_y) && route->cost > 0) {
-            neighbors[count].x = route->dest_x;
-            neighbors[count].y = route->dest_y;
-            neighbors[count].distance = route->cost;
-            count++;
+    if (map[y][x].cost > 0) {
+        for (int i = 0; i < map[y][x].num_air_routes; i++) {
+            Air_Route_t* route = &map[y][x].air_routes[i];
+            
+            if (is_valid_hex(route->dest_x, route->dest_y)) { // route->cost can be 0..100
+                neighbors[count].x = route->dest_x;
+                neighbors[count].y = route->dest_y;
+                neighbors[count].distance = route->cost;
+                count++;
+            }
         }
     }
     
@@ -543,9 +557,7 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
 int main(){
     char comando[MAX_CHAR];
 
-    //condizione di fine ricez comandi.....
-    while(1){
-        scanf("%s", comando);
+    while (scanf("%s", comando) == 1){
         if(strcmp(comando, "init")==0){
             int x, y; 
             if(scanf("%d %d", &x, &y)==2){
@@ -568,7 +580,6 @@ int main(){
             }
         }
     }
-
 
     return 0;
 }
