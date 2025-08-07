@@ -8,6 +8,7 @@
 #define MAX_CHAR 16
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
 #define NUM_AIR_ROUTES 5
+#define CACHE_TABLE_SIZE 10007
 
 
 /*---------------------------------------------------------DATA STRUCTURES------------------------------------------------------*/
@@ -34,11 +35,18 @@ typedef struct Priority_Queue{
     int capacity;
 } Priority_Queue_t;
 
+typedef struct CacheEntry{
+    int xp, yp, xd, yd;
+    int cost;
+    struct CacheEntry *next;
+} CacheEntry_t;
 
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
 Hexagon_t **map = NULL;  // matrice dinamica
 int cols = 0, rows = 0; //num air routes fot that hex;
 //int k=1; //for debugging
+CacheEntry_t **cache_table = NULL;
+
 
 // Offsets map setup
 /* Offset tables for even-r horizontal layout (x = column, y = row)
@@ -112,6 +120,12 @@ bool pq_empty(Priority_Queue_t*);
 bool is_valid_hex(int, int);
 int get_neighbors(int, int, HeapNode_t*);
 
+/* cache utils */
+void cache_init();
+void cache_clear();
+bool cache_lookup(int, int, int, int, int*);
+void cache_insert(int, int, int, int, int);
+
 
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
@@ -145,16 +159,12 @@ void init(int M, int N) {
         }
     }
 
-    /*
-    stampa di debug con (0,0) in basso-a-sx
-    for (int y = rows - 1; y >= 0; y--) {
-        for (int x = 0; x < cols; x++) {
-            printf("%d ", map[y][x].cost);
-        }
-        printf("\n");
+/* reset cache */
+    if(cache_table == NULL){
+        cache_init();
+    }else{
+        cache_clear();
     }
-    */ 
-    
 
     printf("OK\n");
 }
@@ -165,6 +175,11 @@ void change_cost(int x, int y, int v, int r){
     if(v <-10 || v >10 || r <= 0 || map==NULL || x>=cols || y>=rows || x<0 || y<0){
         printf("KO\n");
         return;
+    }
+
+/* map changed, invalidate cache */
+    if(cache_table != NULL){
+        cache_clear();
     }
 
 
@@ -179,28 +194,29 @@ void change_cost(int x, int y, int v, int r){
                 }
 
                 float val = v * interpolation_factor;
+                int delta = (int)floor(val);
 
-                if(v > 0){
-                    map[i][j].cost += (int)floor(val);
-                    if(map[i][j].cost >= 100) map[i][j].cost = 100;
-                }else{
-                    map[i][j].cost += (int)floor(val);
-                    if(map[i][j].cost < 0) map[i][j].cost = 0;
+                // Aggiorna il costo dell'esagono
+                map[i][j].cost += delta;
+                if(map[i][j].cost > 100) {
+                    map[i][j].cost = 100;
+                } else if(map[i][j].cost < 0) {
+                    map[i][j].cost = 0;
                 }
 
+                // Aggiorna anche i costi di tutte le rotte aeree uscenti
+                for(int k = 0; k < map[i][j].num_air_routes; k++) {
+                    map[i][j].air_routes[k].cost += delta;
+                    if(map[i][j].air_routes[k].cost > 100) {
+                        map[i][j].air_routes[k].cost = 100;
+                    } else if(map[i][j].air_routes[k].cost < 0) {
+                        map[i][j].air_routes[k].cost = 0;
+                    }
                 }
             }
         }
-
-
-    /*print map DEBUG:
-    for (int i = rows - 1; i >= 0; i--) {            
-        for (int j = 0; j < cols; j++) {
-            printf("%d ", map[i][j].cost); // debug
-        }
-        printf("\n"); // debug
     }
-    */
+
     printf("OK\n");
 }
 
@@ -235,6 +251,11 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
     if (map == NULL || !is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
         printf("KO\n");
         return;
+    }
+
+/* map changed, invalidate cache */
+    if(cache_table != NULL){
+        cache_clear();
     }
 
     // If exists delete
@@ -296,7 +317,9 @@ int calculate_air_route_cost(int xp, int yp){
         sum_connection_costs += map[yp][xp].air_routes[i].cost;
     }
     
-    int avg = (sum_connection_costs + map[yp][xp].cost) / (map[yp][xp].num_air_routes + 1);
+    
+    float avg_float = (float)(sum_connection_costs + map[yp][xp].cost) / (float)(map[yp][xp].num_air_routes + 1);
+    int avg = (int)floor(avg_float);
     
     if(avg > 100){
         avg = 100;
@@ -311,7 +334,6 @@ int calculate_air_route_cost(int xp, int yp){
     printf("DEBUG: denominatore = %d\n", map[yp][xp].num_air_routes + 1);
     printf("DEBUG: avg calcolato = %d\n", avg);
     */
-    
     
     return avg;
 }
@@ -350,12 +372,20 @@ int travel_cost(int xp, int yp, int xd, int yd){
     }
     // Coordinate uguali → costo 0
     if (xp == xd && yp == yd) {
+        if(cache_table != NULL){
+            cache_insert(xp, yp, xd, yd, 0);
+        }
         return 0;
     }
 
     // Verifica che le coordinate siano dentro la mappa
     if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
         return -1; // coordinate non valide
+    }
+
+    int cached_cost;
+    if(cache_lookup(xp, yp, xd, yd, &cached_cost)){
+        return cached_cost;
     }
 
     // DIJKSTRA ALGORITHM
@@ -376,10 +406,17 @@ int travel_cost(int xp, int yp, int xd, int yd){
         if (visited[current.y][current.x]) continue;
         visited[current.y][current.x] = true;
 
+        /* Store distance for this node in cache so future queries with the
+           stessa sorgente possano riutilizzare il risultato */
+        cache_insert(xp, yp, current.x, current.y, current.distance);
+
         // arrived 
         if (current.x == xd && current.y == yd) {
             int result = current.distance;
             
+            /* store in cache */
+            cache_insert(xp, yp, xd, yd, result);
+
             // Cleanup
             free_distances_and_visited();
             pq_free(&pq);
@@ -538,6 +575,10 @@ bool is_valid_hex(int x, int y) {
 int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     int count = 0;
     
+    if (map[y][x].cost == 0) {
+        return 0;
+    }
+    
     int (*offsets)[2] = (y % 2 == 0) ? hex_offsets_even : hex_offsets_odd;
     
     // Terrestrial
@@ -545,7 +586,7 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
         int nx = x + offsets[i][0];
         int ny = y + offsets[i][1];
         
-        if (is_valid_hex(nx, ny) && map[y][x].cost > 0) {
+        if (is_valid_hex(nx, ny)) {
             neighbors[count].x = nx;
             neighbors[count].y = ny;
             neighbors[count].distance = map[y][x].cost;
@@ -568,6 +609,60 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     }
     
     return count;
+}
+
+/*---------------------------- CACHE IMPLEMENTATION ----------------------------*/
+static unsigned int cache_hash(int xp, int yp, int xd, int yd){
+    unsigned int hash = 0;
+    hash ^= (unsigned int)xp * 73856093u;
+    hash ^= (unsigned int)yp * 19349663u;
+    hash ^= (unsigned int)xd * 83492791u;
+    hash ^= (unsigned int)yd * 1234567u;
+    return hash % CACHE_TABLE_SIZE;
+}
+
+void cache_init(){
+    cache_table = (CacheEntry_t **)calloc(CACHE_TABLE_SIZE, sizeof(CacheEntry_t*));
+}
+
+void cache_clear(){
+    if(cache_table == NULL) return;
+    for(int i = 0; i < CACHE_TABLE_SIZE; i++){
+        CacheEntry_t *cur = cache_table[i];
+        while(cur){
+            CacheEntry_t *tmp = cur->next;
+            free(cur);
+            cur = tmp;
+        }
+        cache_table[i] = NULL;
+    }
+}
+
+bool cache_lookup(int xp, int yp, int xd, int yd, int *result){
+    if(cache_table == NULL) return false;
+    unsigned int h = cache_hash(xp, yp, xd, yd);
+    CacheEntry_t *cur = cache_table[h];
+    while(cur){
+        if(cur->xp == xp && cur->yp == yp && cur->xd == xd && cur->yd == yd){
+            *result = cur->cost;
+            return true;
+        }
+        cur = cur->next;
+    }
+    return false;
+}
+
+void cache_insert(int xp, int yp, int xd, int yd, int cost){
+    if(cache_table == NULL) return;
+    unsigned int h = cache_hash(xp, yp, xd, yd);
+    CacheEntry_t *new_entry = (CacheEntry_t *)malloc(sizeof(CacheEntry_t));
+    new_entry->xp = xp;
+    new_entry->yp = yp;
+    new_entry->xd = xd;
+    new_entry->yd = yd;
+    new_entry->cost = cost;
+    new_entry->next = cache_table[h];
+    cache_table[h] = new_entry;
 }
 
 //------------------------------------------------------------MAIN------------------------------------------------------------
