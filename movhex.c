@@ -305,16 +305,16 @@ int travel_cost(int xp, int yp, int xd, int yd){
     while (!pq_empty(&pq)) {
         HeapNode_t current = pq_pop(&pq);
 
+        if (current.distance != distances[current.y][current.x]) continue;
+
         if (visited[current.y][current.x]) continue;
         visited[current.y][current.x] = true;
 
+        // Early exit
         if (current.x == xd && current.y == yd) {
             int result = current.distance;
-            
-
             free_distances_and_visited();
             pq_free(&pq);
-            
             return result;
         }
 
@@ -326,7 +326,7 @@ int travel_cost(int xp, int yp, int xd, int yd){
             int nx = neighbors[i].x;
             int ny = neighbors[i].y;
             int new_dist = current.distance + neighbors[i].distance;
-            
+
             if (new_dist < distances[ny][nx]) {
                 distances[ny][nx] = new_dist;
                 pq_push(&pq, nx, ny, new_dist);
