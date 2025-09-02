@@ -42,32 +42,10 @@ typedef struct CacheEntry{
 } CacheEntry_t;
 
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
-Hexagon_t **map = NULL;  // matrice dinamica
-int cols = 0, rows = 0; //num air routes fot that hex;
-//int k=1; //for debugging
+Hexagon_t **map = NULL;  
+int cols = 0, rows = 0; 
 CacheEntry_t **cache_table = NULL;
 
-
-// Offsets map setup
-/* Offset tables for even-r horizontal layout (x = column, y = row)
-   Reference: https://www.redblobgames.com/grids/hex-grids/
-
-   For y even (row even):
-       E  (+1,  0)
-       W  (-1,  0)
-       NE ( 0, +1)
-       NW (-1, +1)
-       SE ( 0, -1)
-       SW (-1, -1)
-
-   For y odd (row odd):
-       E  (+1,  0)
-       W  (-1,  0)
-       NE (+1, +1)
-       NW ( 0, +1)
-       SE (+1, -1)
-       SW ( 0, -1)
-*/
 int hex_offsets_even[6][2] = {
     { 1,  0},  // E
     {-1,  0},  // W
@@ -131,7 +109,6 @@ void cache_insert(int, int, int, int, int);
 void init(int M, int N) {
     if (map != NULL) {
         for(int i=0; i<rows; i++) {
-            /* Free any air routes previously allocated for each hexagon */
             for(int j = 0; j < cols; j++) {
                 if(map[i][j].air_routes != NULL){
                     free(map[i][j].air_routes);
@@ -159,7 +136,6 @@ void init(int M, int N) {
         }
     }
 
-/* reset cache */
     if(cache_table == NULL){
         cache_init();
     }else{
@@ -177,7 +153,6 @@ void change_cost(int x, int y, int v, int r){
         return;
     }
 
-/* map changed, invalidate cache */
     if(cache_table != NULL){
         cache_clear();
     }
@@ -196,7 +171,6 @@ void change_cost(int x, int y, int v, int r){
                 float val = v * interpolation_factor;
                 int delta = (int)floor(val);
 
-                // Aggiorna il costo dell'esagono
                 map[i][j].cost += delta;
                 if(map[i][j].cost > 100) {
                     map[i][j].cost = 100;
@@ -204,7 +178,6 @@ void change_cost(int x, int y, int v, int r){
                     map[i][j].cost = 0;
                 }
 
-                // Aggiorna anche i costi di tutte le rotte aeree uscenti
                 for(int k = 0; k < map[i][j].num_air_routes; k++) {
                     map[i][j].air_routes[k].cost += delta;
                     if(map[i][j].air_routes[k].cost > 100) {
@@ -222,10 +195,7 @@ void change_cost(int x, int y, int v, int r){
 
 
 int dist_hex(int xa, int ya, int xb, int yb) {
-    /*
-       Coordinate system: even-r offset (righe dispari offsetate di mezzo hex) where X è la colonna e Y la riga.
-       Conversione a coordinate cubiche e distanza di Manhattan / 2.
-    */
+    /*even-r offset*/
 
     // Convert first point
     int x1 = xa - (ya + (ya & 1)) / 2;
@@ -253,7 +223,6 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
         return;
     }
 
-/* map changed, invalidate cache */
     if(cache_table != NULL){
         cache_clear();
     }
@@ -298,14 +267,6 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
 
     map[yp][xp].num_air_routes++;
 
-
-    /*debug
-    if (idx == 0) {
-        printf("OK: aggiunta la prima rotta\n");
-    } else {
-        printf("OK: aggiunta una nuova rotta\n");
-    }
-    */
    printf("OK\n");
     
 }
@@ -326,14 +287,6 @@ int calculate_air_route_cost(int xp, int yp){
     } else if(avg < 0){
         avg = 0;
     }
-
-    /*
-    printf("DEBUG: num_air_routes = %d\n", map[yp][xp].num_air_routes);
-    printf("DEBUG: sum_connection_costs = %d\n", sum_connection_costs);
-    printf("DEBUG: map[yp][xp].cost = %d\n", map[yp][xp].cost);
-    printf("DEBUG: denominatore = %d\n", map[yp][xp].num_air_routes + 1);
-    printf("DEBUG: avg calcolato = %d\n", avg);
-    */
     
     return avg;
 }
@@ -370,7 +323,7 @@ int travel_cost(int xp, int yp, int xd, int yd){
     if(map==NULL){
         return -1;
     }
-    // Coordinate uguali → costo 0
+
     if (xp == xd && yp == yd) {
         if(cache_table != NULL){
             cache_insert(xp, yp, xd, yd, 0);
@@ -378,9 +331,8 @@ int travel_cost(int xp, int yp, int xd, int yd){
         return 0;
     }
 
-    // Verifica che le coordinate siano dentro la mappa
     if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
-        return -1; // coordinate non valide
+        return -1; 
     }
 
     int cached_cost;
@@ -402,22 +354,16 @@ int travel_cost(int xp, int yp, int xd, int yd){
     while (!pq_empty(&pq)) {
         HeapNode_t current = pq_pop(&pq);
 
-        // skip if visited
         if (visited[current.y][current.x]) continue;
         visited[current.y][current.x] = true;
 
-        /* Store distance for this node in cache so future queries with the
-           stessa sorgente possano riutilizzare il risultato */
         cache_insert(xp, yp, current.x, current.y, current.distance);
-
-        // arrived 
+ 
         if (current.x == xd && current.y == yd) {
             int result = current.distance;
             
-            /* store in cache */
             cache_insert(xp, yp, xd, yd, result);
 
-            // Cleanup
             free_distances_and_visited();
             pq_free(&pq);
             
@@ -440,7 +386,7 @@ int travel_cost(int xp, int yp, int xd, int yd){
         }
     }
 
-    // Destinazione irraggiungibile
+    // Destination unreachable
     free_distances_and_visited();
     pq_free(&pq);
     return -1;
@@ -450,7 +396,6 @@ int travel_cost(int xp, int yp, int xd, int yd){
 // Priority queue functions
 
 void pq_init(Priority_Queue_t* pq, int capacity) {
-    /* Garantiamo una capacità minima per evitare realloc all'inizio */
     if (capacity < 16) capacity = 16;
     pq->heap = (HeapNode_t*)malloc(capacity * sizeof(HeapNode_t));
     pq->size = 0;
@@ -489,7 +434,7 @@ void heap_down(HeapNode_t* heap, int size, int index) {
         smallest = right;
     
     if (smallest != index) {
-        //Swap
+        //swap
         HeapNode_t temp = heap[index];
         heap[index] = heap[smallest];
         heap[smallest] = temp;
@@ -499,12 +444,10 @@ void heap_down(HeapNode_t* heap, int size, int index) {
 }
 
 void pq_push(Priority_Queue_t* pq, int x, int y, int dist) {
-    /* Se necessario, raddoppia la capacità dell'array */
     if (pq->size >= pq->capacity) {
         int new_capacity = pq->capacity * 2;
         HeapNode_t *new_heap = (HeapNode_t*)realloc(pq->heap, new_capacity * sizeof(HeapNode_t));
         if (new_heap == NULL) {
-            /* In caso di fallimento di realloc non inseriamo il nuovo elemento per non corrompere la memoria */
             return;
         }
         pq->heap = new_heap;
@@ -561,7 +504,6 @@ void free_distances_and_visited() {
     }
     free(distances);
     
-    // Libera visited
     for (int i = 0; i < rows; i++) {
         free(visited[i]);
     }
@@ -599,7 +541,7 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
         for (int i = 0; i < map[y][x].num_air_routes; i++) {
             Air_Route_t* route = &map[y][x].air_routes[i];
             
-            if (is_valid_hex(route->dest_x, route->dest_y)) { // route->cost can be 0..100
+            if (is_valid_hex(route->dest_x, route->dest_y)) {
                 neighbors[count].x = route->dest_x;
                 neighbors[count].y = route->dest_y;
                 neighbors[count].distance = route->cost;
