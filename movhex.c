@@ -8,14 +8,17 @@
 #define MAX_CHAR 16
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
 #define NUM_AIR_ROUTES 5
-#define CACHE_TABLE_SIZE 10007
+//#define CACHE_TABLE_SIZE 10007
+#define ID_FROM_XY(x,y) ((y) * cols + (x))
+#define X_FROM_ID(id)   ((id) % cols)
+#define Y_FROM_ID(id)   ((id) / cols)
+
 
 
 /*---------------------------------------------------------DATA STRUCTURES------------------------------------------------------*/
 typedef struct Air_Route{
-    int part_x, part_y;
-    int dest_x, dest_y;
-    int cost;
+    int dest_id;  /* yd*cols + xd */
+    int cost;     /* invariato (0..100) */
 } Air_Route_t;
 
 typedef struct Hexagon{
@@ -35,16 +38,18 @@ typedef struct Priority_Queue{
     int capacity;
 } Priority_Queue_t;
 
+/*
 typedef struct CacheEntry{
     int xp, yp, xd, yd;
     int cost;
     struct CacheEntry *next;
 } CacheEntry_t;
+*/
 
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
 Hexagon_t **map = NULL;  
 int cols = 0, rows = 0; 
-CacheEntry_t **cache_table = NULL;
+//CacheEntry_t **cache_table = NULL;
 
 int hex_offsets_even[6][2] = {
     { 1,  0},  // E
@@ -98,12 +103,12 @@ bool pq_empty(Priority_Queue_t*);
 bool is_valid_hex(int, int);
 int get_neighbors(int, int, HeapNode_t*);
 
-/* cache utils */
+/*
 void cache_init();
 void cache_clear();
 bool cache_lookup(int, int, int, int, int*);
 void cache_insert(int, int, int, int, int);
-
+*/
 
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
@@ -135,13 +140,13 @@ void init(int M, int N) {
             map[y][x].num_air_routes = 0; // initialize count
         }
     }
-
+    /*
     if(cache_table == NULL){
         cache_init();
     }else{
         cache_clear();
     }
-
+    */
     printf("OK\n");
 }
 
@@ -153,11 +158,11 @@ void change_cost(int x, int y, int v, int r){
         printf("KO\n");
         return;
     }
-
+    /*
     if (cache_table != NULL) {
         cache_clear();
     }
-
+    */
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             int d = dist_hex(j, i, x, y);
@@ -216,15 +221,16 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
         printf("KO\n");
         return;
     }
-
+    /*
     if(cache_table != NULL){
         cache_clear();
     }
-
+    */
     // If exists delete
     if (map[yp][xp].air_routes != NULL) {
+        int want = ID_FROM_XY(xd, yd);
         for (int i = 0; i < map[yp][xp].num_air_routes; i++) {
-            if (map[yp][xp].air_routes[i].dest_x == xd && map[yp][xp].air_routes[i].dest_y == yd) {
+            if (map[yp][xp].air_routes[i].dest_id == want) {
                 remove_air_route(xp, yp, xd, yd, i);
                 printf("OK\n");
                 return;
@@ -239,10 +245,9 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
 
     // First route
     if (map[yp][xp].air_routes == NULL) {
-        map[yp][xp].air_routes = malloc(sizeof(Air_Route_t));
-    } else {
-        map[yp][xp].air_routes = realloc(map[yp][xp].air_routes,(map[yp][xp].num_air_routes + 1) * sizeof(Air_Route_t));
+        map[yp][xp].air_routes = malloc(NUM_AIR_ROUTES * sizeof(Air_Route_t));
     }
+    
 
     if (!map[yp][xp].air_routes) {
         printf("KO\n");
@@ -250,13 +255,12 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
     }
 
     int idx = map[yp][xp].num_air_routes;
-    map[yp][xp].air_routes[idx].part_x = xp;
-    map[yp][xp].air_routes[idx].part_y = yp;
-    map[yp][xp].air_routes[idx].dest_x = xd;
-    map[yp][xp].air_routes[idx].dest_y = yd;
-    map[yp][xp].air_routes[idx].cost  = calculate_air_route_cost(xp, yp);
+
+    map[yp][xp].air_routes[idx].dest_id = ID_FROM_XY(xd, yd);
+    map[yp][xp].air_routes[idx].cost    = calculate_air_route_cost(xp, yp);
 
     map[yp][xp].num_air_routes++;
+
 
    printf("OK\n");
     
@@ -314,22 +318,23 @@ int travel_cost(int xp, int yp, int xd, int yd){
     if(map==NULL){
         return -1;
     }
-
+    /*
     if (xp == xd && yp == yd) {
         if(cache_table != NULL){
             cache_insert(xp, yp, xd, yd, 0);
         }
         return 0;
     }
-
+    */
     if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
         return -1; 
     }
-
+    /*
     int cached_cost;
     if(cache_lookup(xp, yp, xd, yd, &cached_cost)){
         return cached_cost;
     }
+    */
 
     // DIJKSTRA ALGORITHM
 
@@ -348,12 +353,12 @@ int travel_cost(int xp, int yp, int xd, int yd){
         if (visited[current.y][current.x]) continue;
         visited[current.y][current.x] = true;
 
-        cache_insert(xp, yp, current.x, current.y, current.distance);
+        //cache_insert(xp, yp, current.x, current.y, current.distance);
  
         if (current.x == xd && current.y == yd) {
             int result = current.distance;
             
-            cache_insert(xp, yp, xd, yd, result);
+            //cache_insert(xp, yp, xd, yd, result);
 
             free_distances_and_visited();
             pq_free(&pq);
@@ -531,10 +536,11 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     if (map[y][x].cost > 0) {
         for (int i = 0; i < map[y][x].num_air_routes; i++) {
             Air_Route_t* route = &map[y][x].air_routes[i];
-            
-            if (is_valid_hex(route->dest_x, route->dest_y)) {
-                neighbors[count].x = route->dest_x;
-                neighbors[count].y = route->dest_y;
+            int nx = X_FROM_ID(route->dest_id);
+            int ny = Y_FROM_ID(route->dest_id);
+            if (is_valid_hex(nx, ny)) {
+                neighbors[count].x = nx;
+                neighbors[count].y = ny;
                 neighbors[count].distance = route->cost;
                 count++;
             }
@@ -545,6 +551,7 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
 }
 
 /*---------------------------- CACHE IMPLEMENTATION ----------------------------*/
+/*
 static unsigned int cache_hash(int xp, int yp, int xd, int yd){
     unsigned int hash = 0;
     hash ^= (unsigned int)xp * 73856093u;
@@ -597,7 +604,7 @@ void cache_insert(int xp, int yp, int xd, int yd, int cost){
     new_entry->next = cache_table[h];
     cache_table[h] = new_entry;
 }
-
+*/
 //------------------------------------------------------------MAIN------------------------------------------------------------
 
 
@@ -630,4 +637,3 @@ int main(){
 
     return 0;
 }
-
