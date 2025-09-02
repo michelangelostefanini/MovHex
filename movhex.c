@@ -8,17 +8,15 @@
 #define MAX_CHAR 32
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
 #define NUM_AIR_ROUTES 5
-//#define CACHE_TABLE_SIZE 10007
 #define ID_FROM_XY(x,y) ((y) * cols + (x))
 #define X_FROM_ID(id)   ((id) % cols)
 #define Y_FROM_ID(id)   ((id) / cols)
 
 
-
 /*---------------------------------------------------------DATA STRUCTURES------------------------------------------------------*/
 typedef struct Air_Route{
-    int dest_id;  /* yd*cols + xd */
-    int cost;     /* invariato (0..100) */
+    int dest_id;  
+    int cost;    
 } Air_Route_t;
 
 typedef struct Hexagon{
@@ -38,18 +36,10 @@ typedef struct Priority_Queue{
     int capacity;
 } Priority_Queue_t;
 
-/*
-typedef struct CacheEntry{
-    int xp, yp, xd, yd;
-    int cost;
-    struct CacheEntry *next;
-} CacheEntry_t;
-*/
 
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
 Hexagon_t **map = NULL;  
 int cols = 0, rows = 0; 
-//CacheEntry_t **cache_table = NULL;
 
 int hex_offsets_even[6][2] = {
     { 1,  0},  // E
@@ -103,13 +93,6 @@ bool pq_empty(Priority_Queue_t*);
 bool is_valid_hex(int, int);
 int get_neighbors(int, int, HeapNode_t*);
 
-/*
-void cache_init();
-void cache_clear();
-bool cache_lookup(int, int, int, int, int*);
-void cache_insert(int, int, int, int, int);
-*/
-
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
     if (map != NULL) {
@@ -127,26 +110,19 @@ void init(int M, int N) {
     cols = M;
     rows = N;
 
-    map = malloc(sizeof(Hexagon_t *)*rows);   // array di puntatori alle righe
+    map = malloc(sizeof(Hexagon_t *)*rows);   
     for (int i=0; i<rows; i++) {
-        map[i] = malloc(sizeof(Hexagon_t)*cols);  // ogni riga ha 'cols' elementi
+        map[i] = malloc(sizeof(Hexagon_t)*cols);  
     }
 
-    // iniz
     for (int y = 0; y < rows; y++) {
         for (int x = 0; x < cols; x++) {
             map[y][x].cost = 1;
-            map[y][x].air_routes = NULL; // initialize pointer
-            map[y][x].num_air_routes = 0; // initialize count
+            map[y][x].air_routes = NULL;
+            map[y][x].num_air_routes = 0;
         }
     }
-    /*
-    if(cache_table == NULL){
-        cache_init();
-    }else{
-        cache_clear();
-    }
-    */
+    
     printf("OK\n");
 }
 
@@ -158,11 +134,7 @@ void change_cost(int x, int y, int v, int r){
         printf("KO\n");
         return;
     }
-    /*
-    if (cache_table != NULL) {
-        cache_clear();
-    }
-    */
+    
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             int d = dist_hex(j, i, x, y);
@@ -192,7 +164,7 @@ void change_cost(int x, int y, int v, int r){
 
 
 int dist_hex(int xa, int ya, int xb, int yb){
-    /*odd-r*/
+    // Odd-r layout
     int x1 = xa - ((ya - (ya & 1)) / 2);
     int z1 = ya;
     int y1 = -x1 - z1;
@@ -221,11 +193,7 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
         printf("KO\n");
         return;
     }
-    /*
-    if(cache_table != NULL){
-        cache_clear();
-    }
-    */
+    
     // If exists delete
     if (map[yp][xp].air_routes != NULL) {
         int want = ID_FROM_XY(xd, yd);
@@ -291,14 +259,14 @@ void remove_air_route(int xp, int yp, int xd, int yd, int i){
         return;
     }
 
-    //shift to sx
+    // Shift to sx
     for (int j=i; j<map[yp][xp].num_air_routes-1; j++) {
         map[yp][xp].air_routes[j] = map[yp][xp].air_routes[j + 1];
     }
 
     map[yp][xp].num_air_routes--;
 
-    //Memory re-sizing
+    // Memory re-sizing
     if(map[yp][xp].num_air_routes == 0){
         free(map[yp][xp].air_routes);
         map[yp][xp].air_routes = NULL;
@@ -318,27 +286,14 @@ int travel_cost(int xp, int yp, int xd, int yd){
     if(map==NULL){
         return -1;
     }
-    /*
-    if (xp == xd && yp == yd) {
-        if(cache_table != NULL){
-            cache_insert(xp, yp, xd, yd, 0);
-        }
-        return 0;
-    }
-    */
+    
     if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
         return -1; 
     }
-    /*
-    int cached_cost;
-    if(cache_lookup(xp, yp, xd, yd, &cached_cost)){
-        return cached_cost;
-    }
-    */
 
     // DIJKSTRA ALGORITHM
 
-    //iniz:
+    // Iniz:
     init_distances_and_visited();
 
     Priority_Queue_t pq;
@@ -353,12 +308,9 @@ int travel_cost(int xp, int yp, int xd, int yd){
         if (visited[current.y][current.x]) continue;
         visited[current.y][current.x] = true;
 
-        //cache_insert(xp, yp, current.x, current.y, current.distance);
- 
         if (current.x == xd && current.y == yd) {
             int result = current.distance;
             
-            //cache_insert(xp, yp, xd, yd, result);
 
             free_distances_and_visited();
             pq_free(&pq);
@@ -367,7 +319,7 @@ int travel_cost(int xp, int yp, int xd, int yd){
         }
 
         // Neighbors
-        HeapNode_t neighbors[11]; // max 6 terrestri + 5 aerei
+        HeapNode_t neighbors[11]; // Max 6 terrestrials + 5 planes
         int num_neighbors = get_neighbors(current.x, current.y, neighbors);
 
         for (int i = 0; i < num_neighbors; i++) {
@@ -409,7 +361,7 @@ void heap_up(HeapNode_t* heap, int index) {
     
     int parent = (index - 1) / 2;
     if (heap[index].distance < heap[parent].distance) {
-        //swap
+        // Swap
         HeapNode_t temp = heap[index];
         heap[index] = heap[parent];
         heap[parent] = temp;
@@ -430,7 +382,7 @@ void heap_down(HeapNode_t* heap, int size, int index) {
         smallest = right;
     
     if (smallest != index) {
-        //swap
+        // Swap
         HeapNode_t temp = heap[index];
         heap[index] = heap[smallest];
         heap[smallest] = temp;
@@ -550,63 +502,7 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     return count;
 }
 
-/*---------------------------- CACHE IMPLEMENTATION ----------------------------*/
-/*
-static unsigned int cache_hash(int xp, int yp, int xd, int yd){
-    unsigned int hash = 0;
-    hash ^= (unsigned int)xp * 73856093u;
-    hash ^= (unsigned int)yp * 19349663u;
-    hash ^= (unsigned int)xd * 83492791u;
-    hash ^= (unsigned int)yd * 1234567u;
-    return hash % CACHE_TABLE_SIZE;
-}
-
-void cache_init(){
-    cache_table = (CacheEntry_t **)calloc(CACHE_TABLE_SIZE, sizeof(CacheEntry_t*));
-}
-
-void cache_clear(){
-    if(cache_table == NULL) return;
-    for(int i = 0; i < CACHE_TABLE_SIZE; i++){
-        CacheEntry_t *cur = cache_table[i];
-        while(cur){
-            CacheEntry_t *tmp = cur->next;
-            free(cur);
-            cur = tmp;
-        }
-        cache_table[i] = NULL;
-    }
-}
-
-bool cache_lookup(int xp, int yp, int xd, int yd, int *result){
-    if(cache_table == NULL) return false;
-    unsigned int h = cache_hash(xp, yp, xd, yd);
-    CacheEntry_t *cur = cache_table[h];
-    while(cur){
-        if(cur->xp == xp && cur->yp == yp && cur->xd == xd && cur->yd == yd){
-            *result = cur->cost;
-            return true;
-        }
-        cur = cur->next;
-    }
-    return false;
-}
-
-void cache_insert(int xp, int yp, int xd, int yd, int cost){
-    if(cache_table == NULL) return;
-    unsigned int h = cache_hash(xp, yp, xd, yd);
-    CacheEntry_t *new_entry = (CacheEntry_t *)malloc(sizeof(CacheEntry_t));
-    new_entry->xp = xp;
-    new_entry->yp = yp;
-    new_entry->xd = xd;
-    new_entry->yd = yd;
-    new_entry->cost = cost;
-    new_entry->next = cache_table[h];
-    cache_table[h] = new_entry;
-}
-*/
 //------------------------------------------------------------MAIN------------------------------------------------------------
-
 
 int main(){
     char comando[MAX_CHAR];
