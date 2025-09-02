@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <ctype.h>
 
 #define MAX_CHAR 32
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
@@ -59,7 +60,6 @@ int hex_offsets_odd[6][2] = {
     { 0, -1}   // SW
 };
 
-
 int** distances; 
 bool** visited; //true if processed
 
@@ -78,7 +78,6 @@ void toggle_air_route(int, int, int, int);
 int calculate_air_route_cost(int, int);
 void remove_air_route(int, int, int, int, int);
 
-
 int travel_cost(int, int, int, int);
 //utils:
 void init_distances_and_visited();
@@ -92,6 +91,15 @@ void heap_down(HeapNode_t*, int, int) ;
 bool pq_empty(Priority_Queue_t*);
 bool is_valid_hex(int, int);
 int get_neighbors(int, int, HeapNode_t*);
+
+// Fast I/O:
+static inline int get_char_fast();
+static inline int skip_spaces();
+static inline int read_word(char *);
+static inline int read_int(int *);
+static inline void fastio_setup();
+static inline void write_str(const char *);
+static inline void write_int_ln(int);
 
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
@@ -502,34 +510,112 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     return count;
 }
 
+//----------------------------------------------------------FAST I/O----------------------------------------------------------
+
+// ---------- FAST INPUT (stdin buffer 1 MiB) ----------
+
+static unsigned char in_buffer[1<<20];
+static int in_pos = 0;     
+static int in_size = 0;   
+
+
+static inline int get_char_fast(){
+    if (in_pos >= in_size){
+        in_size = (int)fread(in_buffer, 1, sizeof in_buffer, stdin);
+        in_pos = 0;
+        if (in_size == 0) return EOF;
+    }
+    return in_buffer[in_pos++];
+}
+
+static inline int skip_spaces(){
+    int c = get_char_fast();
+    while (c != EOF && c <= ' ') c = get_char_fast();
+    return c;
+}
+
+static inline int read_word(char *dst){ 
+    int c = skip_spaces(); 
+    if (c == EOF) return 0;
+    int i = 0;
+    while (c != EOF && c > ' ') { 
+        dst[i++] = (char)c; 
+        c = get_char_fast(); 
+        if (i == 31) break; 
+    }
+    dst[i] = '\0';
+    return 1;
+}
+
+static inline int read_int(int *x){
+    int c = skip_spaces(); 
+    if (c == EOF) return 0;
+    int sign = 1; 
+    if (c == '-') { sign = -1; c = get_char_fast(); }
+    int val = 0;
+    while (c > ' '){ 
+        val = val*10 + (c - '0'); 
+        c = get_char_fast(); 
+    }
+    *x = sign * val; 
+    return 1;
+}
+
+// ---------- FAST OUTPUT (stdout buffer 1 MiB) ----------
+
+static inline void fastio_setup(){
+    setvbuf(stdout, NULL, _IOFBF, 1<<20); 
+}
+
+static inline void write_str(const char *s){
+    fputs(s, stdout);
+}
+
+static inline void write_int_ln(int v){
+    char buf[32]; 
+    int i = 0; 
+    int n = v; 
+    int neg = (v < 0);
+    if (neg) n = -n;
+    do {
+        buf[i++] = (char)('0' + (n % 10)); 
+        n /= 10;
+    } while (n);
+    if (neg) buf[i++] = '-';
+    while (i--) fputc(buf[i], stdout);
+    fputc('\n', stdout);
+}
+
 //------------------------------------------------------------MAIN------------------------------------------------------------
 
 int main(){
-    char comando[MAX_CHAR];
+    // Fast I/O 
+    fastio_setup();                        // stdout 1 MiB
+    setvbuf(stdin,  NULL, _IOFBF, 1<<20);  // stdin  1 MiB
 
-    while(scanf("%31s", comando) == 1){
-        if(strcmp(comando, "init")==0){
-            int x, y; 
-            if(scanf("%d %d", &x, &y)==2){
-                init(x, y);
-            }
-        }else if(strcmp(comando, "change_cost")==0){
-            int x, y, v, r; 
-            if(scanf("%d %d %d %d", &x, &y, &v, &r)==4){
-                change_cost(x, y, v, r);
-            }
-        }else if(strcmp(comando, "travel_cost")==0){
-            int xp, yp, xd, yd; 
-            if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
-                printf("%d\n", travel_cost(xp, yp, xd, yd));
-            }
-        }else if(strcmp(comando, "toggle_air_route")==0){
-            int xp, yp, xd, yd; 
-            if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
-                toggle_air_route(xp, yp, xd, yd);
-            }
+    char cmd[32];
+    while (read_word(cmd)) {
+        if (cmd[0]=='i') { // init
+            int M, N;
+            if (!read_int(&M) || !read_int(&N)) break;
+            init(M, N); 
+
+        } else if (cmd[0]=='c') { // change_cost
+            int x, y, v, r;
+            if (!read_int(&x) || !read_int(&y) || !read_int(&v) || !read_int(&r)) break;
+            change_cost(x, y, v, r); 
+
+        } else if (cmd[0]=='t' && cmd[7]=='a') { // toggle_air_route
+            int xp, yp, xd, yd;
+            if (!read_int(&xp) || !read_int(&yp) || !read_int(&xd) || !read_int(&yd)) break;
+            toggle_air_route(xp, yp, xd, yd); 
+
+        } else if (cmd[0]=='t') { // travel_cost
+            int xp, yp, xd, yd;
+            if (!read_int(&xp) || !read_int(&yp) || !read_int(&xd) || !read_int(&yd)) break;
+            int ans = travel_cost(xp, yp, xd, yd);
+            write_int_ln(ans);
         }
     }
-
     return 0;
 }
