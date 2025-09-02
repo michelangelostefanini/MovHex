@@ -148,43 +148,40 @@ void init(int M, int N) {
 /*--------------------------------------------------------------CHANGE COST------------------------------------------------------------*/
 
 void change_cost(int x, int y, int v, int r){
-    if(v <-10 || v >10 || r <= 0 || map==NULL || x>=cols || y>=rows || x<0 || y<0){
+    // Controlli da specifica
+    if (v < -10 || v > 10 || r <= 0 || map == NULL || x < 0 || y < 0 || x >= cols || y >= rows) {
         printf("KO\n");
         return;
     }
 
-    if(cache_table != NULL){
+    // Invalida la cache dei travel_cost
+    if (cache_table != NULL) {
         cache_clear();
     }
 
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            int d = dist_hex(j, i, x, y);
 
-    for (int i=0; i <rows; i++) {
-        for (int j=0; j <cols; j++) {
-            int distance_hex = dist_hex(j, i, x, y);
-            if (distance_hex <= r) {
-                float interpolation_factor = 1.0f - ((float)distance_hex / (float)r);
+            // ATTENZIONE: strettamente < r (non <=)
+            if (d < r) {
+                // fattore = max(0, (r - d)/r) su float 32-bit
+                float factor = (r - d) / (float)r;
+                if (factor < 0.0f) factor = 0.0f;
 
-                if(interpolation_factor < 0.0f){
-                    interpolation_factor = 0.0f; 
-                }
+                // delta = floorf(v * factor)
+                int delta = (int)floorf(v * factor);
 
-                float val = v * interpolation_factor;
-                int delta = (int)floor(val);
-
+                // aggiorna costo via terra con clamp [0..100]
                 map[i][j].cost += delta;
-                if(map[i][j].cost > 100) {
-                    map[i][j].cost = 100;
-                } else if(map[i][j].cost < 0) {
-                    map[i][j].cost = 0;
-                }
+                if (map[i][j].cost > 100) map[i][j].cost = 100;
+                else if (map[i][j].cost < 0) map[i][j].cost = 0;
 
-                for(int k = 0; k < map[i][j].num_air_routes; k++) {
+                // aggiorna TUTTE le rotte aeree uscenti con lo stesso delta e clamp [0..100]
+                for (int k = 0; k < map[i][j].num_air_routes; k++) {
                     map[i][j].air_routes[k].cost += delta;
-                    if(map[i][j].air_routes[k].cost > 100) {
-                        map[i][j].air_routes[k].cost = 100;
-                    } else if(map[i][j].air_routes[k].cost < 0) {
-                        map[i][j].air_routes[k].cost = 0;
-                    }
+                    if (map[i][j].air_routes[k].cost > 100) map[i][j].air_routes[k].cost = 100;
+                    else if (map[i][j].air_routes[k].cost < 0) map[i][j].air_routes[k].cost = 0;
                 }
             }
         }
@@ -194,16 +191,14 @@ void change_cost(int x, int y, int v, int r){
 }
 
 
-int dist_hex(int xa, int ya, int xb, int yb) {
-    /*even-r offset*/
 
-    // Convert first point
-    int x1 = xa - (ya + (ya & 1)) / 2;
+int dist_hex(int xa, int ya, int xb, int yb){
+    /*odd-r*/
+    int x1 = xa - ((ya - (ya & 1)) / 2);
     int z1 = ya;
     int y1 = -x1 - z1;
 
-    // Convert second point
-    int x2 = xb - (yb + (yb & 1)) / 2;
+    int x2 = xb - ((yb - (yb & 1)) / 2);
     int z2 = yb;
     int y2 = -x2 - z2;
 
@@ -211,8 +206,13 @@ int dist_hex(int xa, int ya, int xb, int yb) {
     int dy = y2 - y1;
     int dz = z2 - z1;
 
-    return (abs(dx) + abs(dy) + abs(dz)) / 2;
+    int adx = dx < 0 ? -dx : dx;
+    int ady = dy < 0 ? -dy : dy;
+    int adz = dz < 0 ? -dz : dz;
+
+    return (adx + ady + adz) / 2;
 }
+
 
 /*--------------------------------------------------------------TOGGLE AIR ROUTE------------------------------------------------------------*/
 
