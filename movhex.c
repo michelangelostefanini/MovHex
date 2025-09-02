@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <limits.h>
 
-#define MAX_CHAR 16
+#define MAX_CHAR 32
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
 #define NUM_AIR_ROUTES 5
 //#define CACHE_TABLE_SIZE 10007
@@ -217,7 +217,7 @@ int dist_hex(int xa, int ya, int xb, int yb){
 
 void toggle_air_route(int xp, int yp, int xd, int yd){
 
-    if (map == NULL || !is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
+    if (map == NULL || !is_valid_hex(xp, yp) || !is_valid_hex(xd, yd) || (xp == xd && yp == yd)) {
         printf("KO\n");
         return;
     }
@@ -611,7 +611,7 @@ void cache_insert(int xp, int yp, int xd, int yd, int cost){
 int main(){
     char comando[MAX_CHAR];
 
-    while (scanf("%s", comando) == 1){
+    while(scanf("%31s", comando) == 1){
         if(strcmp(comando, "init")==0){
             int x, y; 
             if(scanf("%d %d", &x, &y)==2){
