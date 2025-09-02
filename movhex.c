@@ -148,13 +148,12 @@ void init(int M, int N) {
 /*--------------------------------------------------------------CHANGE COST------------------------------------------------------------*/
 
 void change_cost(int x, int y, int v, int r){
-    // Controlli da specifica
+    
     if (v < -10 || v > 10 || r <= 0 || map == NULL || x < 0 || y < 0 || x >= cols || y >= rows) {
         printf("KO\n");
         return;
     }
 
-    // Invalida la cache dei travel_cost
     if (cache_table != NULL) {
         cache_clear();
     }
@@ -163,21 +162,16 @@ void change_cost(int x, int y, int v, int r){
         for (int j = 0; j < cols; j++) {
             int d = dist_hex(j, i, x, y);
 
-            // ATTENZIONE: strettamente < r (non <=)
             if (d < r) {
-                // fattore = max(0, (r - d)/r) su float 32-bit
                 float factor = (r - d) / (float)r;
                 if (factor < 0.0f) factor = 0.0f;
 
-                // delta = floorf(v * factor)
                 int delta = (int)floorf(v * factor);
 
-                // aggiorna costo via terra con clamp [0..100]
                 map[i][j].cost += delta;
                 if (map[i][j].cost > 100) map[i][j].cost = 100;
                 else if (map[i][j].cost < 0) map[i][j].cost = 0;
 
-                // aggiorna TUTTE le rotte aeree uscenti con lo stesso delta e clamp [0..100]
                 for (int k = 0; k < map[i][j].num_air_routes; k++) {
                     map[i][j].air_routes[k].cost += delta;
                     if (map[i][j].air_routes[k].cost > 100) map[i][j].air_routes[k].cost = 100;
@@ -232,7 +226,6 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
         for (int i = 0; i < map[yp][xp].num_air_routes; i++) {
             if (map[yp][xp].air_routes[i].dest_x == xd && map[yp][xp].air_routes[i].dest_y == yd) {
                 remove_air_route(xp, yp, xd, yd, i);
-                //printf("OK: tolta una rotta\n");    //debug
                 printf("OK\n");
                 return;
             }
@@ -248,9 +241,7 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
     if (map[yp][xp].air_routes == NULL) {
         map[yp][xp].air_routes = malloc(sizeof(Air_Route_t));
     } else {
-        map[yp][xp].air_routes = realloc(
-            map[yp][xp].air_routes,
-            (map[yp][xp].num_air_routes + 1) * sizeof(Air_Route_t));
+        map[yp][xp].air_routes = realloc(map[yp][xp].air_routes,(map[yp][xp].num_air_routes + 1) * sizeof(Air_Route_t));
     }
 
     if (!map[yp][xp].air_routes) {
