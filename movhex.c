@@ -47,8 +47,8 @@ typedef struct CacheEntry{
 typedef struct Cache{
     CacheEntry_t *tab;   
     uint32_t    cap;    
-    uint32_t    mask;   // cap-1
-    uint32_t    size;   // slot occupati
+    uint32_t    mask;   
+    uint32_t    size;
 } Cache;
 
 
@@ -74,8 +74,8 @@ int hex_offsets_odd[6][2] = {
     { 0, -1}   // SW
 };
 
-int** distances; 
-bool** visited; //true if processed
+static int *dist = NULL;
+static size_t dist_cap = 0;
 static Cache g_cache;
 
 /*---------------------------------------------------------FUNCTIONS DECLARATION----------------------------------------------------*/
@@ -322,13 +322,12 @@ int travel_cost(int xp, int yp, int xd, int yd) {
     }
 
     // DIJKSTRA ALGORITHM
-
     init_distances_and_visited();
 
     Priority_Queue_t pq;
     pq_init(&pq, rows * cols);
 
-    distances[yp][xp] = 0;
+    dist[ID_FROM_XY(xp, yp)] = 0;
     pq_push(&pq, xp, yp, 0);
 
     // Neighbors buffer
@@ -337,10 +336,7 @@ int travel_cost(int xp, int yp, int xd, int yd) {
     while (!pq_empty(&pq)) {
         HeapNode_t current = pq_pop(&pq);
 
-        if (current.distance != distances[current.y][current.x]) continue;
-
-        if (visited[current.y][current.x]) continue;
-        visited[current.y][current.x] = true;
+        if (current.distance != dist[ID_FROM_XY(current.x, current.y)]) continue;
 
         // Early exit
         if (current.x == xd && current.y == yd) {
@@ -357,15 +353,15 @@ int travel_cost(int xp, int yp, int xd, int yd) {
             int nx = neighbors[i].x;
             int ny = neighbors[i].y;
             int nd = current.distance + neighbors[i].distance;
-            if (nd < distances[ny][nx]) {
-                distances[ny][nx] = nd;
+            uint32_t nid = ID_FROM_XY(nx, ny);
+            if (nd < dist[nid]) {
+                dist[nid] = nd;
                 pq_push(&pq, nx, ny, nd);
             }
         }
     }
 
     cache_put(&g_cache, src, dst, -1);
-
     free_distances_and_visited();
     pq_free(&pq);
     return -1;
@@ -459,35 +455,16 @@ bool pq_empty(Priority_Queue_t* pq) {
 }
 
 void init_distances_and_visited() {
-    distances = (int**)malloc(rows * sizeof(int*));
-
-    for (int i = 0; i < rows; i++) {
-        distances[i] = (int*)malloc(cols * sizeof(int));
-        for (int j = 0; j < cols; j++) {
-            distances[i][j] = INT_MAX; 
-        }
+    size_t need = (size_t)rows * (size_t)cols;
+    if (need > dist_cap) {
+        free(dist);
+        dist = (int*)malloc(need * sizeof(int));
+        dist_cap = need;
     }
-    
-    visited = (bool**)malloc(rows * sizeof(bool*));
-    for (int i = 0; i < rows; i++) {
-        visited[i] = (bool*)malloc(cols * sizeof(bool));
-        for (int j = 0; j < cols; j++) {
-            visited[i][j] = false;
-        }
-    }
+    memset(dist, 0x3f, need * sizeof(int));
 }
 
-void free_distances_and_visited() {
-    for (int i = 0; i < rows; i++) {
-        free(distances[i]);
-    }
-    free(distances);
-    
-    for (int i = 0; i < rows; i++) {
-        free(visited[i]);
-    }
-    free(visited);
-}
+void free_distances_and_visited() {}
 
 bool is_valid_hex(int x, int y) {
     return x >= 0 && x < cols && y >= 0 && y < rows;
