@@ -143,7 +143,7 @@ void init(int M, int N) {
         }
     }
     
-    cache_init(&g_cache, 1u << 19);
+    cache_init(&g_cache, 1u << 16);
 
     printf("OK\n");
 }
