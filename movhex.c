@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <limits.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #define MAX_CHAR 32
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
@@ -12,6 +13,7 @@
 #define ID_FROM_XY(x,y) ((y) * cols + (x))
 #define X_FROM_ID(id)   ((id) % cols)
 #define Y_FROM_ID(id)   ((id) / cols)
+#define EMPTY_KEY UINT64_MAX
 
 
 /*---------------------------------------------------------DATA STRUCTURES------------------------------------------------------*/
@@ -36,6 +38,18 @@ typedef struct Priority_Queue{
     int size;
     int capacity;
 } Priority_Queue_t;
+
+typedef struct CacheEntry{
+    uint64_t key;   
+    int32_t  cost; 
+} CacheEntry_t;
+
+typedef struct Cache{
+    CacheEntry_t *tab;   
+    uint32_t    cap;    
+    uint32_t    mask;   // cap-1
+    uint32_t    size;   // slot occupati
+} Cache;
 
 
 /*-------------------------------------------------------- GLOBAL VARIABLES ----------------------------------------------------*/
@@ -62,6 +76,7 @@ int hex_offsets_odd[6][2] = {
 
 int** distances; 
 bool** visited; //true if processed
+static Cache g_cache;
 
 /*---------------------------------------------------------FUNCTIONS DECLARATION----------------------------------------------------*/
 
@@ -92,14 +107,11 @@ bool pq_empty(Priority_Queue_t*);
 bool is_valid_hex(int, int);
 int get_neighbors(int, int, HeapNode_t*);
 
-// Fast I/O:
-static inline int get_char_fast();
-static inline int skip_spaces();
-static inline int read_word(char *);
-static inline int read_int(int *);
-static inline void fastio_setup();
-static inline void write_str(const char *);
-static inline void write_int_ln(int);
+//Cache
+static void  cache_init(Cache*, uint32_t);
+static inline void cache_clear(Cache *);
+static inline int  cache_get(const Cache *, uint32_t, uint32_t, int *);
+static inline void cache_put(Cache *, uint32_t, uint32_t, int);
 
 /*--------------------------------------------------------------INIT------------------------------------------------------------*/
 void init(int M, int N) {
@@ -131,6 +143,8 @@ void init(int M, int N) {
         }
     }
     
+    cache_init(&g_cache, 1u << 19);
+
     printf("OK\n");
 }
 
@@ -165,6 +179,8 @@ void change_cost(int x, int y, int v, int r){
             }
         }
     }
+
+    cache_clear(&g_cache);
 
     printf("OK\n");
 }
@@ -236,10 +252,10 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
     map[yp][xp].air_routes[idx].cost    = calculate_air_route_cost(xp, yp);
 
     map[yp][xp].num_air_routes++;
+   
+    cache_clear(&g_cache);
 
-
-   printf("OK\n");
-    
+    printf("OK\n");
 }
 
 int calculate_air_route_cost(int xp, int yp){
@@ -290,25 +306,33 @@ void remove_air_route(int xp, int yp, int xd, int yd, int i){
 
 /*--------------------------------------------------------------TRAVEL COST------------------------------------------------------------*/
 
-int travel_cost(int xp, int yp, int xd, int yd){
-    if(map==NULL){
-        return -1;
-    }
-    
-    if (!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) {
-        return -1; 
+int travel_cost(int xp, int yp, int xd, int yd) {
+    if(map == NULL)return -1;
+    if(!is_valid_hex(xp, yp) || !is_valid_hex(xd, yd)) return -1;
+    if(xp == xd && yp == yd) return 0;
+
+    // Keys for cache
+    uint32_t src = (uint32_t)yp * (uint32_t)cols + (uint32_t)xp;
+    uint32_t dst = (uint32_t)yd * (uint32_t)cols + (uint32_t)xd;
+
+    // Lookup in cache
+    int cached_cost;
+    if (cache_get(&g_cache, src, dst, &cached_cost)) {
+        return cached_cost; 
     }
 
     // DIJKSTRA ALGORITHM
 
-    // Iniz:
     init_distances_and_visited();
 
     Priority_Queue_t pq;
-    pq_init(&pq, rows*cols);
+    pq_init(&pq, rows * cols);
 
     distances[yp][xp] = 0;
     pq_push(&pq, xp, yp, 0);
+
+    // Neighbors buffer
+    HeapNode_t neighbors[11];
 
     while (!pq_empty(&pq)) {
         HeapNode_t current = pq_pop(&pq);
@@ -321,28 +345,27 @@ int travel_cost(int xp, int yp, int xd, int yd){
         // Early exit
         if (current.x == xd && current.y == yd) {
             int result = current.distance;
+            cache_put(&g_cache, src, dst, result);
+
             free_distances_and_visited();
             pq_free(&pq);
             return result;
         }
 
-        // Neighbors
-        HeapNode_t neighbors[11]; // Max 6 terrestrials + 5 planes
         int num_neighbors = get_neighbors(current.x, current.y, neighbors);
-
-        for (int i = 0; i < num_neighbors; i++) {
+        for (int i = 0; i < num_neighbors; ++i) {
             int nx = neighbors[i].x;
             int ny = neighbors[i].y;
-            int new_dist = current.distance + neighbors[i].distance;
-
-            if (new_dist < distances[ny][nx]) {
-                distances[ny][nx] = new_dist;
-                pq_push(&pq, nx, ny, new_dist);
+            int nd = current.distance + neighbors[i].distance;
+            if (nd < distances[ny][nx]) {
+                distances[ny][nx] = nd;
+                pq_push(&pq, nx, ny, nd);
             }
         }
     }
 
-    // Destination unreachable
+    cache_put(&g_cache, src, dst, -1);
+
     free_distances_and_visited();
     pq_free(&pq);
     return -1;
@@ -510,112 +533,114 @@ int get_neighbors(int x, int y, HeapNode_t* neighbors) {
     return count;
 }
 
-//----------------------------------------------------------FAST I/O----------------------------------------------------------
+//----------------------------------------------------------CACHE----------------------------------------------------------
 
-// ---------- FAST INPUT (stdin buffer 1 MiB) ----------
+static inline uint32_t next_pow2(uint32_t x){
+    if (x <= 1) return 1;
+    x--; x |= x>>1; x |= x>>2; x |= x>>4; x |= x>>8; x |= x>>16;
+    return x+1;
+}
 
-static unsigned char in_buffer[1<<20];
-static int in_pos = 0;     
-static int in_size = 0;   
+// Hash
+static inline uint64_t mix64(uint64_t x){
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
 
+static inline uint64_t make_key(uint32_t src, uint32_t dst){
+    return ((uint64_t)src << 32) | (uint64_t)dst;
+}
 
-static inline int get_char_fast(){
-    if (in_pos >= in_size){
-        in_size = (int)fread(in_buffer, 1, sizeof in_buffer, stdin);
-        in_pos = 0;
-        if (in_size == 0) return EOF;
+static void cache_init(Cache *c, uint32_t min_capacity){
+    uint32_t cap = next_pow2(min_capacity);
+    if (cap < 1024u) cap = 1024u;          
+    c->cap = cap; c->mask = cap - 1; c->size = 0;
+    c->tab = (CacheEntry_t*)malloc(sizeof(CacheEntry_t) * cap);
+    memset(c->tab, 0xFF, sizeof(CacheEntry_t) * cap);
+}
+
+static inline void cache_free(Cache *c){
+    free(c->tab); c->tab = NULL; c->cap = c->mask = c->size = 0;
+}
+
+static inline void cache_clear(Cache *c){
+    memset(c->tab, 0xFF, sizeof(CacheEntry_t) * c->cap);
+    c->size = 0;
+}
+
+// Re-hash (when load factor > 0.7)
+static void cache_grow(Cache *c){
+    Cache old = *c;
+    cache_init(c, old.cap << 1);
+    for (uint32_t i=0; i<old.cap; ++i){
+        if (old.tab[i].key != EMPTY_KEY){
+            uint64_t k = old.tab[i].key, h = mix64(k);
+            for (uint32_t j=0;;++j){
+                uint32_t idx = (uint32_t)(h + j) & c->mask;
+                if (c->tab[idx].key == EMPTY_KEY){
+                    c->tab[idx] = old.tab[i]; c->size++;
+                    break;
+                }
+            }
+        }
     }
-    return in_buffer[in_pos++];
+    free(old.tab);
 }
 
-static inline int skip_spaces(){
-    int c = get_char_fast();
-    while (c != EOF && c <= ' ') c = get_char_fast();
-    return c;
-}
-
-static inline int read_word(char *dst){ 
-    int c = skip_spaces(); 
-    if (c == EOF) return 0;
-    int i = 0;
-    while (c != EOF && c > ' ') { 
-        dst[i++] = (char)c; 
-        c = get_char_fast(); 
-        if (i == 31) break; 
+static inline int cache_get(const Cache *c, uint32_t src, uint32_t dst, int *out_cost){
+    uint64_t k = make_key(src, dst), h = mix64(k);
+    for (uint32_t i=0;;++i){
+        uint32_t idx = (uint32_t)(h + i) & c->mask;
+        uint64_t key = c->tab[idx].key;
+        if (key == k){ *out_cost = c->tab[idx].cost; return 1; }
+        if (key == EMPTY_KEY) return 0; 
     }
-    dst[i] = '\0';
-    return 1;
 }
 
-static inline int read_int(int *x){
-    int c = skip_spaces(); 
-    if (c == EOF) return 0;
-    int sign = 1; 
-    if (c == '-') { sign = -1; c = get_char_fast(); }
-    int val = 0;
-    while (c > ' '){ 
-        val = val*10 + (c - '0'); 
-        c = get_char_fast(); 
+static inline void cache_put(Cache *c, uint32_t src, uint32_t dst, int cost){
+    if (c->size >= (c->cap * 7) / 10) cache_grow(c);
+    uint64_t k = make_key(src, dst), h = mix64(k);
+    for (uint32_t i=0;;++i){
+        uint32_t idx = (uint32_t)(h + i) & c->mask;
+        if (c->tab[idx].key == EMPTY_KEY || c->tab[idx].key == k){
+            if (c->tab[idx].key == EMPTY_KEY) c->size++;
+            c->tab[idx].key  = k;
+            c->tab[idx].cost = cost;
+            return;
+        }
     }
-    *x = sign * val; 
-    return 1;
-}
-
-// ---------- FAST OUTPUT (stdout buffer 1 MiB) ----------
-
-static inline void fastio_setup(){
-    setvbuf(stdout, NULL, _IOFBF, 1<<20); 
-}
-
-static inline void write_str(const char *s){
-    fputs(s, stdout);
-}
-
-static inline void write_int_ln(int v){
-    char buf[32]; 
-    int i = 0; 
-    int n = v; 
-    int neg = (v < 0);
-    if (neg) n = -n;
-    do {
-        buf[i++] = (char)('0' + (n % 10)); 
-        n /= 10;
-    } while (n);
-    if (neg) buf[i++] = '-';
-    while (i--) fputc(buf[i], stdout);
-    fputc('\n', stdout);
 }
 
 //------------------------------------------------------------MAIN------------------------------------------------------------
 
 int main(){
-    // Fast I/O 
-    fastio_setup();                        // stdout 1 MiB
-    setvbuf(stdin,  NULL, _IOFBF, 1<<20);  // stdin  1 MiB
+    char comando[MAX_CHAR];
 
-    char cmd[32];
-    while (read_word(cmd)) {
-        if (cmd[0]=='i') { // init
-            int M, N;
-            if (!read_int(&M) || !read_int(&N)) break;
-            init(M, N); 
-
-        } else if (cmd[0]=='c') { // change_cost
-            int x, y, v, r;
-            if (!read_int(&x) || !read_int(&y) || !read_int(&v) || !read_int(&r)) break;
-            change_cost(x, y, v, r); 
-
-        } else if (cmd[0]=='t' && cmd[7]=='a') { // toggle_air_route
-            int xp, yp, xd, yd;
-            if (!read_int(&xp) || !read_int(&yp) || !read_int(&xd) || !read_int(&yd)) break;
-            toggle_air_route(xp, yp, xd, yd); 
-
-        } else if (cmd[0]=='t') { // travel_cost
-            int xp, yp, xd, yd;
-            if (!read_int(&xp) || !read_int(&yp) || !read_int(&xd) || !read_int(&yd)) break;
-            int ans = travel_cost(xp, yp, xd, yd);
-            write_int_ln(ans);
+    while(scanf("%31s", comando) == 1){
+        if(strcmp(comando, "init")==0){
+            int x, y; 
+            if(scanf("%d %d", &x, &y)==2){
+                init(x, y);
+            }
+        }else if(strcmp(comando, "change_cost")==0){
+            int x, y, v, r; 
+            if(scanf("%d %d %d %d", &x, &y, &v, &r)==4){
+                change_cost(x, y, v, r);
+            }
+        }else if(strcmp(comando, "travel_cost")==0){
+            int xp, yp, xd, yd; 
+            if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
+                printf("%d\n", travel_cost(xp, yp, xd, yd));
+            }
+        }else if(strcmp(comando, "toggle_air_route")==0){
+            int xp, yp, xd, yd; 
+            if(scanf("%d %d %d %d", &xp, &yp, &xd, &yd)==4){
+                toggle_air_route(xp, yp, xd, yd);
+            }
         }
     }
+
     return 0;
 }
