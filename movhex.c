@@ -11,8 +11,8 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b)) //macro for max
 #define NUM_AIR_ROUTES 5
 #define ID_FROM_XY(x,y) ((y) * cols + (x))
-#define X_FROM_ID(id)   ((id) % cols)
-#define Y_FROM_ID(id)   ((id) / cols)
+#define X_FROM_ID(id) ((id) % cols)
+#define Y_FROM_ID(id) ((id) / cols)
 #define EMPTY_KEY UINT64_MAX
 
 
@@ -56,22 +56,24 @@ typedef struct Cache{
 Hexagon_t **map = NULL;  
 int cols = 0, rows = 0; 
 
+// Offsets
+
 int hex_offsets_even[6][2] = {
-    { 1,  0},  // E
-    {-1,  0},  // W
-    { 0,  1},  // NE
-    {-1,  1},  // NW
-    { 0, -1},  // SE
-    {-1, -1}   // SW
+    { 1,  0},  
+    {-1,  0}, 
+    { 0,  1},  
+    {-1,  1},  
+    { 0, -1},  
+    {-1, -1}   
 };
 
 int hex_offsets_odd[6][2] = {
-    { 1,  0},  // E
-    {-1,  0},  // W
-    { 1,  1},  // NE
-    { 0,  1},  // NW
-    { 1, -1},  // SE
-    { 0, -1}   // SW
+    { 1,  0},  
+    {-1,  0},  
+    { 1,  1}, 
+    { 0,  1},  
+    { 1, -1},  
+    { 0, -1}  
 };
 
 static int *dist = NULL;
