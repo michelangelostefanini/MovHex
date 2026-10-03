@@ -1,7 +1,7 @@
 # MovHex
 
-A C project developed for the Algorithms and Data Structures course in the
-2024/2025 academic year. It computes minimum travel costs on a hexagonal map
+A C project developed for the Algorithms and Data Structures course at
+Politecnico di Milano in the 2024/2025 academic year. It computes minimum travel costs on a hexagonal map
 with traversal costs and directed air routes.
 
 This repository contains the university project and its regression tests.
@@ -62,6 +62,17 @@ vertices with up to six ground neighbors and five outgoing air routes.
 Minimum travel costs are computed using Dijkstra's algorithm and a priority
 queue backed by a binary heap. A hash table caches query results; changes
 to the map invalidate the cache.
+
+## Profiling
+
+During development, I used Valgrind's Callgrind tool and KCachegrind to inspect
+instruction costs and identify hotspots in the shortest-path implementation.
+The profile below highlights neighbor traversal and priority queue operations
+within `travel_cost`.
+
+![KCachegrind instruction cost profile and call graph for travel_cost](docs/images/kcachegrind.jpg)
+
+*Development-time profile, showing instruction costs for a specific workload.*
 
 ## Tests
 
