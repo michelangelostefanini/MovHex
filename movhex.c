@@ -93,7 +93,7 @@ int dist_hex(int, int, int, int);
 void toggle_air_route(int, int, int, int);
 //utils:
 int calculate_air_route_cost(int, int);
-void remove_air_route(int, int, int, int, int);
+void remove_air_route(int, int, int);
 
 int travel_cost(int, int, int, int);
 //utils:
@@ -110,6 +110,7 @@ bool is_valid_hex(int, int);
 int get_neighbors(int, int, HeapNode_t*);
 
 //Cache
+static inline void cache_free(Cache*);
 static void  cache_init(Cache*, uint32_t);
 static inline void cache_clear(Cache *);
 static inline int  cache_get(const Cache *, uint32_t, uint32_t, int *);
@@ -145,6 +146,7 @@ void init(int M, int N) {
         }
     }
     
+    cache_free(&g_cache);
     cache_init(&g_cache, 1u << 16);
 
     printf("OK\n");
@@ -225,7 +227,8 @@ void toggle_air_route(int xp, int yp, int xd, int yd){
         int want = ID_FROM_XY(xd, yd);
         for (int i = 0; i < map[yp][xp].num_air_routes; i++) {
             if (map[yp][xp].air_routes[i].dest_id == want) {
-                remove_air_route(xp, yp, xd, yd, i);
+                remove_air_route(xp, yp, i);
+                cache_clear(&g_cache);
                 printf("OK\n");
                 return;
             }
@@ -280,7 +283,7 @@ int calculate_air_route_cost(int xp, int yp){
     return avg;
 }
 
-void remove_air_route(int xp, int yp, int xd, int yd, int i){
+void remove_air_route(int xp, int yp, int i){
     if(i<0 || i>=map[yp][xp].num_air_routes) {
         return;
     }
@@ -292,18 +295,12 @@ void remove_air_route(int xp, int yp, int xd, int yd, int i){
 
     map[yp][xp].num_air_routes--;
 
-    // Memory re-sizing
+    // Keep capacity for future routes; free only when no routes remain.
     if(map[yp][xp].num_air_routes == 0){
         free(map[yp][xp].air_routes);
         map[yp][xp].air_routes = NULL;
-    }else{
-        Air_Route_t *tmp = realloc(
-            map[yp][xp].air_routes,
-            map[yp][xp].num_air_routes * sizeof(Air_Route_t));
-        if(tmp != NULL){
-            map[yp][xp].air_routes = tmp;
-        }
     }
+
 }
 
 /*--------------------------------------------------------------TRAVEL COST------------------------------------------------------------*/
@@ -621,5 +618,12 @@ int main(){
         }
     }
 
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x < cols; ++x) free(map[y][x].air_routes);
+        free(map[y]);
+    }
+    free(map);
+    free(dist);
+    cache_free(&g_cache);
     return 0;
 }

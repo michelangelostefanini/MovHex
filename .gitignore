@@ -1,0 +1,9 @@
+/movhex
+/movhex-sanitize
+/result/
+*.o
+*.log
+*.dSYM/
+.DS_Store
+.vscode/
+__pycache__/
