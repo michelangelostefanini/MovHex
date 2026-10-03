@@ -1,43 +1,43 @@
 # MovHex
 
-Progetto del corso di Algoritmi e Strutture Dati, anno accademico 2024/2025.
-Implementazione in C del calcolo del costo minimo di viaggio su una mappa
-esagonale con costi di attraversamento e rotte aeree direzionali.
+A C project developed for the Algorithms and Data Structures course in the
+2024/2025 academic year. It computes minimum travel costs on a hexagonal map
+with traversal costs and directed air routes.
 
-Il repository raccoglie il progetto universitario e i relativi test di
-regressione. Il programma legge comandi da standard input e scrive le risposte
-su standard output.
+This repository contains the university project and its regression tests.
+The program reads commands from standard input and writes responses to
+standard output.
 
-## Compilazione ed esecuzione
+## Build and run
 
-Servono un compilatore C (GCC o Clang) e Make. Python 3 serve solo per i test.
-Su Linux e macOS:
+A C compiler (GCC or Clang) and Make are required. Python 3 is only needed
+for the tests. On Linux and macOS:
 
 ```sh
 make
 ./movhex < tests/example.txt
 ```
 
-Compilazione diretta:
+To compile directly:
 
 ```sh
 cc -O2 -std=gnu11 -Wall -Wextra movhex.c -lm -o movhex
 ```
 
-## Comandi
+## Commands
 
-Le coordinate sono a base zero; `x` indica la colonna e `y` la riga.
+Coordinates are zero-based: `x` is the column and `y` is the row.
 
-| Comando | Descrizione |
+| Command | Description |
 | --- | --- |
-| `init colonne righe` | Crea o reinizializza la mappa con costo iniziale 1. |
-| `change_cost x y variazione raggio` | Modifica i costi delle celle e delle rotte uscenti entro il raggio. La variazione è compresa fra −10 e 10; il raggio deve essere positivo. |
-| `toggle_air_route x1 y1 x2 y2` | Aggiunge o rimuove una rotta direzionale; ogni cella può avere fino a cinque rotte uscenti. |
-| `travel_cost x1 y1 x2 y2` | Restituisce il costo minimo, oppure `-1` se le coordinate sono invalide o la destinazione è irraggiungibile. |
+| `init columns rows` | Creates or resets the map, setting every cell's initial cost to 1. |
+| `change_cost x y change radius` | Updates cell costs and outgoing air route costs within the radius. The change must be between −10 and 10, and the radius must be positive. |
+| `toggle_air_route x1 y1 x2 y2` | Adds or removes a directed air route. Each cell supports up to five outgoing air routes. |
+| `travel_cost x1 y1 x2 y2` | Returns the minimum travel cost, or `-1` if the coordinates are invalid or the destination is unreachable. |
 
-I comandi che modificano la mappa rispondono `OK` o `KO`. I costi sono limitati
-all'intervallo 0–100. Una cella di costo zero non consente di ripartire;
-il costo della cella di destinazione non viene addebitato all'arrivo.
+Commands that modify the map return `OK` or `KO`. Costs are clamped to the
+range 0–100. A cell with a cost of zero cannot be departed from; the
+destination cell's cost is not charged on arrival.
 
 ```text
 init 3 3
@@ -55,28 +55,28 @@ OK
 1
 ```
 
-## Algoritmo
+## Algorithm
 
-La griglia usa coordinate offset con righe dispari traslate. Le celle sono
-vertici di un grafo con fino a sei vicini terrestri e cinque rotte aeree uscenti.
-Il costo minimo viene calcolato con Dijkstra e una coda di priorità basata su
-heap binario. Una tabella hash conserva i risultati delle interrogazioni;
-le modifiche alla mappa invalidano la cache.
+The grid uses offset coordinates with odd rows shifted. Cells are graph
+vertices with up to six ground neighbors and five outgoing air routes.
+Minimum travel costs are computed using Dijkstra's algorithm and a priority
+queue backed by a binary heap. A hash table caches query results; changes
+to the map invalidate the cache.
 
-## Test
+## Tests
 
 ```sh
-make test       # confronta gli output con i risultati attesi
-make sanitize   # esegue i test con AddressSanitizer e UndefinedBehaviorSanitizer
-make clean      # elimina gli eseguibili generati
+make test       # compare program output against the expected results
+make sanitize   # run tests with AddressSanitizer and UndefinedBehaviorSanitizer
+make clean      # remove generated executables
 ```
 
-`tests/` contiene sette casi del progetto originale e un test aggiuntivo per
-la rimozione e il reinserimento delle rotte e la reinizializzazione della mappa.
-I file `.txt.result` sono gli output attesi. La CI esegue i test su Linux e macOS.
+`tests/` contains seven cases from the original project and an additional
+regression test for air route removal and reinsertion, and map
+reinitialization. The `.txt.result` files contain the expected output.
+CI runs the tests on Linux and macOS.
 
-Durante la pulizia sono stati corretti l'invalidazione della cache alla
-rimozione di una rotta, la capacità del vettore delle rotte dopo una rimozione
-e il rilascio della cache alla reinizializzazione. Il progetto conserva
-l'impostazione originale e presuppone input nel formato previsto dall'esercizio;
-non è un parser pensato per input arbitrario.
+Repository cleanup also fixed cache invalidation when removing an air route,
+air route array capacity after removal, and cache deallocation when resetting
+the map. The project retains its original structure and assumes input follows
+the assignment's format; its parser is not designed for arbitrary input.
